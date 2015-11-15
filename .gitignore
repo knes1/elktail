@@ -1,0 +1,17 @@
+*.[oa]
+*~
+*log
+*bk*
+.css
+ARCHIVE/
+.settings
+.settings/
+.DS_Store
+target
+.project
+.classpath
+.DS_Store
+.idea/
+*.iml
+bin/
+
