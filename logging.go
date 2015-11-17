@@ -11,17 +11,18 @@ var (
 	Error   *log.Logger
 )
 
-func InitLogging(traceHandle io.Writer, infoHandle io.Writer, errorHandle io.Writer) {
+func InitLogging(traceHandle io.Writer, infoHandle io.Writer, errorHandle io.Writer, printLines bool) {
+	flag := 0
+	if printLines {
+		flag = log.Lshortfile
+	}
 
 	Trace = log.New(traceHandle,
-		"TRACE: ",
-		log.Ldate | log.Ltime | log.Lshortfile)
+		"TRACE: ", flag)
 
 	Info = log.New(infoHandle,
-		"INFO: ",
-		log.Ldate | log.Ltime | log.Lshortfile)
+		"INFO: ", flag)
 
 	Error = log.New(errorHandle,
-		"ERROR: ",
-		log.Ldate | log.Ltime | log.Lshortfile)
+		"ERROR: ", flag)
 }

@@ -1,0 +1,18 @@
+{
+	"ImportPath": "github.io/knes1/elktail",
+	"GoVersion": "go1.5.1",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "golang.org/x/crypto/ssh/terminal",
+			"Rev": "346896d57731cb5670b36c6178fc5519f3225980"
+		},
+		{
+			"ImportPath": "gopkg.in/olivere/elastic.v2",
+			"Comment": "v2.0.18",
+			"Rev": "9f744c4a57dd7c636101aef9678f51dddc83b068"
+		}
+	]
+}

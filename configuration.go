@@ -17,17 +17,18 @@ type QueryDefinition struct {
 type Configuration struct {
 	searchTarget	SearchTarget
 	queryDefinition QueryDefinition
-	initialEntries int
+	initialEntries  int
 	listOnly		bool
+	user			string
+	password		string
 	verbose			bool
 	moreVerbose		bool
+	traceRequests	bool
 	help			bool
 }
 
 func setupConfiguration() *Configuration {
 	config := new(Configuration)
-	//config.searchTarget = new(SearchTarget)
-	//config.queryDefinition = new(QueryDefinition)
 
 	flag.StringVar(&config.searchTarget.url, "url", "http://127.0.0.1:9200", "`ElasticSearch URL`")
 	flag.StringVar(&config.queryDefinition.format, "f", "%message", "message `format` for the entries - field names are referenced using % sign, for example '%@timestamp %message'")
@@ -35,8 +36,10 @@ func setupConfiguration() *Configuration {
 	flag.StringVar(&config.queryDefinition.timestampField, "t", "@timestamp", "`timestamp field` name used for tailing entries")
 	flag.BoolVar(&config.listOnly, "l", false, "just `list the results once`, do not follow")
 	flag.IntVar(&config.initialEntries, "n", 50, "`number of entries` fetched intially")
-	flag.BoolVar(&config.verbose, "v", false, "enable verbose output")
-	flag.BoolVar(&config.moreVerbose, "vv", false, "enable even more verbose output")
+	flag.StringVar(&config.user, "u", "", "`username` for http basic auth, password is supplied over password prompt")
+	flag.BoolVar(&config.verbose, "v", false, "enable verbose output (for debugging)")
+	flag.BoolVar(&config.moreVerbose, "vv", false, "enable even more verbose output (for debugging)")
+	flag.BoolVar(&config.traceRequests, "vvv", false, "also trace requests and responses (for debugigng")
 	flag.BoolVar(&config.help, "help", false, "print out help message")
 
 	flag.Parse()
