@@ -23,7 +23,7 @@ type Tail struct {
 	lastTimeStamp   string           //timestamp of the last result
 }
 
-var FormatRegexp = regexp.MustCompile("%[A-Za-z0-9@_-]+")
+var formatRegexp = regexp.MustCompile("%[A-Za-z0-9@_-]+")
 
 func NewTail(configuration *Configuration) *Tail {
 	tail := new(Tail)
@@ -80,6 +80,7 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 			Index(t.index).
 			Sort(t.queryDefinition.timestampField, false).
 			From(0).
+			Size(9000). //TODO: needs rewrite this using scrolling, as this implementation will loose entries if there's more than 9K entries per sleep period
 			Query(t.buildTimestampFilteredQuery()).
 			Do()
 		if err != nil {
@@ -105,21 +106,14 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 		if err != nil {
 			Error.Fatalln("Failed parsing ElasticSearch response.", err)
 		}
-		//fmt.Printf("[%s] %s\n", entry["@timestamp"], entry["message"])
 		t.lastTimeStamp = entry["@timestamp"].(string)
 		t.printResult(entry)
-		/*
-			var out bytes.Buffer
-			json.Indent(&out, *hit.Source, "", "\t")
-			out.WriteTo(os.Stdout)
-		*/
-		//t.lastIds[entry["@timestamp"].(string)] = true
 	}
 }
 
 func (t *Tail) printResult(entry map[string]interface{}) {
 	Trace.Println("Result: ", entry)
-	fields := FormatRegexp.FindAllString(t.queryDefinition.format, -1)
+	fields := formatRegexp.FindAllString(t.queryDefinition.format, -1)
 	Trace.Println("Fields: ", entry)
 	result := t.queryDefinition.format
 	for _, f := range fields {
