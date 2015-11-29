@@ -31,15 +31,15 @@ func NewTail(configuration *Configuration) *Tail {
 	var client *elastic.Client
 	var err error
 	defaultOptions := []elastic.ClientOptionFunc{
-		elastic.SetURL(configuration.searchTarget.url),
+		elastic.SetURL(configuration.SearchTarget.Url),
 		elastic.SetSniff(false)}
 
-	if configuration.user != "" {
+	if configuration.User != "" {
 		defaultOptions = append(defaultOptions,
-			elastic.SetBasicAuth(configuration.user, configuration.password))
+			elastic.SetBasicAuth(configuration.User, configuration.Password))
 	}
 
-	if configuration.traceRequests {
+	if configuration.TraceRequests {
 		defaultOptions = append(defaultOptions,
 			elastic.SetTraceLog(Trace))
 	}
@@ -51,21 +51,21 @@ func NewTail(configuration *Configuration) *Tail {
 	}
 	tail.client = client
 
-	tail.queryDefinition = &configuration.queryDefinition
+	tail.queryDefinition = &configuration.QueryDefinition
 
 	indices, err := tail.client.IndexNames()
 	if err != nil {
 		Error.Fatalln("Error fetching available indices.", err)
 	}
 
-	tail.index = tail.findLastIndex(indices, configuration.searchTarget.indexPattern)
+	tail.index = tail.findLastIndex(indices, configuration.SearchTarget.IndexPattern)
 	return tail
 }
 
 func (t *Tail) Start(follow bool, initialEntries int) {
 	result, err := t.client.Search().
 		Index(t.index).
-		Sort(t.queryDefinition.timestampField, false).
+		Sort(t.queryDefinition.TimestampField, false).
 		Query(t.buildSearchQuery()).
 		From(0).Size(initialEntries).
 		Do()
@@ -78,7 +78,7 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 		time.Sleep(delay)
 		result, err = t.client.Search().
 			Index(t.index).
-			Sort(t.queryDefinition.timestampField, false).
+			Sort(t.queryDefinition.TimestampField, false).
 			From(0).
 			Size(9000). //TODO: needs rewrite this using scrolling, as this implementation will loose entries if there's more than 9K entries per sleep period
 			Query(t.buildTimestampFilteredQuery()).
@@ -113,9 +113,9 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 
 func (t *Tail) printResult(entry map[string]interface{}) {
 	Trace.Println("Result: ", entry)
-	fields := formatRegexp.FindAllString(t.queryDefinition.format, -1)
+	fields := formatRegexp.FindAllString(t.queryDefinition.Format, -1)
 	Trace.Println("Fields: ", entry)
-	result := t.queryDefinition.format
+	result := t.queryDefinition.Format
 	for _, f := range fields {
 		value, ok := entry[f[1:len(f)]].(string)
 		if ok {
@@ -126,8 +126,8 @@ func (t *Tail) printResult(entry map[string]interface{}) {
 }
 
 func (t *Tail) buildSearchQuery() elastic.Query {
-	if len(t.queryDefinition.terms) > 0 {
-		result := strings.Join(t.queryDefinition.terms, " ")
+	if len(t.queryDefinition.Terms) > 0 {
+		result := strings.Join(t.queryDefinition.Terms, " ")
 		Trace.Printf("Running query string query: %s", result)
 		return elastic.NewQueryStringQuery(result)
 	} else {
@@ -138,7 +138,7 @@ func (t *Tail) buildSearchQuery() elastic.Query {
 
 func (t *Tail) buildTimestampFilteredQuery() elastic.Query {
 	query := elastic.NewFilteredQuery(t.buildSearchQuery()).Filter(
-		elastic.NewRangeFilter(t.queryDefinition.timestampField).
+		elastic.NewRangeFilter(t.queryDefinition.TimestampField).
 			IncludeUpper(false).
 			Gt(t.lastTimeStamp))
 	return query
@@ -162,26 +162,26 @@ func (t *Tail) findLastIndex(indices []string, indexPattern string) string {
 func main() {
 	config := setupConfiguration()
 
-	if config.moreVerbose || config.traceRequests {
+	if config.MoreVerbose || config.TraceRequests {
 		InitLogging(os.Stderr, os.Stderr, os.Stderr, true)
-	} else if config.verbose {
+	} else if config.Verbose {
 		InitLogging(ioutil.Discard, os.Stderr, os.Stderr, false)
 	} else {
 		InitLogging(ioutil.Discard, ioutil.Discard, os.Stderr, false)
 	}
 
-	if config.user != "" {
+	if config.User != "" {
 		fmt.Print("Enter password: ")
-		config.password = readPasswd()
+		config.Password = readPasswd()
 	}
 
-	if config.help {
+	if config.Help {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
 
 	tail := NewTail(config)
-	tail.Start(!config.listOnly, config.initialEntries)
+	tail.Start(!config.ListOnly, config.InitialEntries)
 }
 
 func readPasswd() string {
