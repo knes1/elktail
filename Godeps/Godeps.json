@@ -1,12 +1,18 @@
 {
 	"ImportPath": "github.io/knes1/elktail",
 	"GoVersion": "go1.5.1",
-	"Packages": [
-		"./..."
-	],
 	"Deps": [
 		{
-			"ImportPath": "golang.org/x/crypto/ssh/terminal",
+			"ImportPath": "github.com/codegangsta/cli",
+			"Comment": "1.2.0-179-g0302d39",
+			"Rev": "0302d3914d2a6ad61404584cdae6e6dbc9c03599"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/curve25519",
+			"Rev": "346896d57731cb5670b36c6178fc5519f3225980"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh",
 			"Rev": "346896d57731cb5670b36c6178fc5519f3225980"
 		},
 		{
