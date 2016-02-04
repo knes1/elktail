@@ -38,24 +38,30 @@ func (tunnel *SSHTunnel) Start() error {
 	defer listener.Close()
 
 	for {
+		serverConn, err := ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
+		if err != nil {
+			Error.Fatalf("SSH Tunnel: %s\n", err)
+			return err
+		}
 		conn, err := listener.Accept()
 		if err != nil {
 			Error.Printf("SSH Tunnel: Failed to accept connection: %s", err)
 			return err
 		}
 		Info.Print("SSH Tunnel: Accepted connection to forward to the tunnel...")
-		go tunnel.forward(conn)
+		go tunnel.forward(conn, serverConn)
 	}
 }
 
-func (tunnel *SSHTunnel) forward(localConn net.Conn) {
+func (tunnel *SSHTunnel) forward(localConn net.Conn, sshServerConn *ssh.Client) {
+	/*
 	serverConn, err := ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
 	if err != nil {
 		Error.Fatalf("SSH Tunnel: Server dial error: %s\n", err)
 		return
-	}
+	}*/
 
-	remoteConn, err := serverConn.Dial("tcp", tunnel.Remote.String())
+	remoteConn, err := sshServerConn.Dial("tcp", tunnel.Remote.String())
 	if err != nil {
 		Error.Fatalf("SSH Tunnel: Remote dial error: %s\n", err)
 		return
@@ -134,6 +140,11 @@ func parsePort(portStr string, defaultPort int) int {
 	return defaultPort
 }
 
+func passwordCallback() (string, error) {
+	fmt.Println("Enter ssh password:")
+	pwd := readPasswd();
+	return pwd, nil;
+}
 
 func NewSSHTunnel(sshUser string, sshHost string, sshPort int, localPort int,
 						remoteHost string, remotePort int) *SSHTunnel {
@@ -156,6 +167,7 @@ func NewSSHTunnel(sshUser string, sshHost string, sshPort int, localPort int,
 		User: sshUser,
 		Auth: []ssh.AuthMethod{
 			SSHAgent(),
+			ssh.PasswordCallback(passwordCallback),
 		},
 	}
 
