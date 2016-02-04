@@ -1,4 +1,4 @@
-package main
+package elktail
 import (
 	"runtime"
 	"os"
