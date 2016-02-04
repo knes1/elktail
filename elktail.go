@@ -180,7 +180,7 @@ func main() {
 	app.Name = "elktail"
 	app.Usage = "utility for tailing Logstash logs stored in ElasticSearch"
 	app.HideHelp = true
-	app.Version = "0.1.1"
+	app.Version = VERSION
 	app.ArgsUsage = "[query-string]"
 	app.Flags = config.Flags()
 	app.Action = func(c *cli.Context) {
