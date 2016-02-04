@@ -1,4 +1,4 @@
-package elktail
+package main
 
 import (
 	"os"

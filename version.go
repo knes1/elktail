@@ -1,3 +1,3 @@
-package elktail
+package main
 
 const VERSION = "0.1.1"
