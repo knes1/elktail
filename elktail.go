@@ -34,7 +34,9 @@ func NewTail(configuration *Configuration) *Tail {
 	var client *elastic.Client
 	var err error
 	var url = configuration.SearchTarget.Url;
-	if configuration.SearchTarget.Url != "" {
+
+	//if a tunnel is successfully created, we need to connect to tunnel url (which is localhost on tunnel port)
+	if configuration.SearchTarget.TunnelUrl != "" {
 		url = configuration.SearchTarget.TunnelUrl
 	}
 
@@ -58,7 +60,7 @@ func NewTail(configuration *Configuration) *Tail {
 	client, err = elastic.NewClient(defaultOptions...)
 
 	if err != nil {
-		Error.Fatalf("Could not connect Elasticsearch client to %s: %s.", configuration.SearchTarget.Url, err)
+		Error.Fatalf("Could not connect Elasticsearch client to %s: %s.", url, err)
 	}
 	tail.client = client
 
