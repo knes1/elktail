@@ -34,6 +34,15 @@ func NewTail(configuration *Configuration) *Tail {
 	var client *elastic.Client
 	var err error
 	var url = configuration.SearchTarget.Url;
+	if (!strings.HasPrefix(url, "http")) {
+		url = "http://" + url
+		Trace.Printf("Adding http:// prefix to given url. Url: " + url)
+	}
+
+	if(!Must(regexp.MatchString(".*:\\d+", url)) && Must(regexp.MatchString("http://[^/]+$", url))) {
+		url += ":9200"
+		Trace.Printf("No port was specified, adding default port 9200 to given url. Url: " + url)
+	}
 
 	//if a tunnel is successfully created, we need to connect to tunnel url (which is localhost on tunnel port)
 	if configuration.SearchTarget.TunnelUrl != "" {
@@ -75,14 +84,18 @@ func NewTail(configuration *Configuration) *Tail {
 	return tail
 }
 
+// Helper function to avoid boilerplate error handling for regex matches
+// this way they may be used in single value context
+func Must(result bool, err error) bool {
+	if (err != nil) {
+		Error.Panic(err)
+	}
+	return result
+}
+
 // Start the tailer
 func (t *Tail) Start(follow bool, initialEntries int) {
-	result, err := t.client.Search().
-		Index(t.index).
-		Sort(t.queryDefinition.TimestampField, false).
-		Query(t.buildSearchQuery()).
-		From(0).Size(initialEntries).
-		Do()
+	result, err := t.initialSearch(initialEntries)
 	if err != nil {
 		Error.Fatalln("Error in executing search query.", err)
 	}
@@ -90,13 +103,19 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 	delay := 500 * time.Millisecond
 	for follow {
 		time.Sleep(delay)
-		result, err = t.client.Search().
-			Index(t.index).
-			Sort(t.queryDefinition.TimestampField, false).
-			From(0).
-			Size(9000). //TODO: needs rewrite this using scrolling, as this implementation may loose entries if there's more than 9K entries per sleep period
-			Query(t.buildTimestampFilteredQuery()).
-			Do()
+		if t.lastTimeStamp != "" {
+			//we can execute follow up timestamp filtered query only if we fetched at least 1 result in initial query
+			result, err = t.client.Search().
+				Index(t.index).
+				Sort(t.queryDefinition.TimestampField, false).
+				From(0).
+				Size(9000). //TODO: needs rewrite this using scrolling, as this implementation may loose entries if there's more than 9K entries per sleep period
+				Query(t.buildTimestampFilteredQuery()).
+				Do()
+		} else {
+			//if lastTimeStamp is not defined we have to repeat the initial search until we get at least 1 result
+			result, err = t.initialSearch(initialEntries)
+		}
 		if err != nil {
 			Error.Fatalln("Error in executing search query.", err)
 		}
@@ -107,8 +126,19 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 			delay = delay + 500*time.Millisecond
 		}
 	}
-
 }
+
+// Initial search needs to be run until we get at least one result
+// in order to fetch the timestamp which we will use in subsequent follow searches
+func (t *Tail) initialSearch(initialEntries int) (*elastic.SearchResult, error) {
+	return t.client.Search().
+	Index(t.index).
+	Sort(t.queryDefinition.TimestampField, false).
+	Query(t.buildSearchQuery()).
+	From(0).Size(initialEntries).
+	Do()
+}
+
 
 // Process the results (e.g. prints them out based on configured format)
 func (t *Tail) processResults(searchResult *elastic.SearchResult) {
