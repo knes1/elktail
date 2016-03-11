@@ -3,15 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"gopkg.in/olivere/elastic.v2"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
-	"golang.org/x/crypto/ssh/terminal"
+
 	"github.com/codegangsta/cli"
-	"net/url"
+	"golang.org/x/crypto/ssh/terminal"
+	"gopkg.in/olivere/elastic.v2"
 )
 
 //
@@ -33,13 +34,13 @@ func NewTail(configuration *Configuration) *Tail {
 
 	var client *elastic.Client
 	var err error
-	var url = configuration.SearchTarget.Url;
-	if (!strings.HasPrefix(url, "http")) {
+	var url = configuration.SearchTarget.Url
+	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 		Trace.Printf("Adding http:// prefix to given url. Url: " + url)
 	}
 
-	if(!Must(regexp.MatchString(".*:\\d+", url)) && Must(regexp.MatchString("http://[^/]+$", url))) {
+	if !Must(regexp.MatchString(".*:\\d+", url)) && Must(regexp.MatchString("http://[^/]+$", url)) {
 		url += ":9200"
 		Trace.Printf("No port was specified, adding default port 9200 to given url. Url: " + url)
 	}
@@ -87,7 +88,7 @@ func NewTail(configuration *Configuration) *Tail {
 // Helper function to avoid boilerplate error handling for regex matches
 // this way they may be used in single value context
 func Must(result bool, err error) bool {
-	if (err != nil) {
+	if err != nil {
 		Error.Panic(err)
 	}
 	return result
@@ -132,13 +133,12 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 // in order to fetch the timestamp which we will use in subsequent follow searches
 func (t *Tail) initialSearch(initialEntries int) (*elastic.SearchResult, error) {
 	return t.client.Search().
-	Index(t.index).
-	Sort(t.queryDefinition.TimestampField, false).
-	Query(t.buildSearchQuery()).
-	From(0).Size(initialEntries).
-	Do()
+		Index(t.index).
+		Sort(t.queryDefinition.TimestampField, false).
+		Query(t.buildSearchQuery()).
+		From(0).Size(initialEntries).
+		Do()
 }
-
 
 // Process the results (e.g. prints them out based on configured format)
 func (t *Tail) processResults(searchResult *elastic.SearchResult) {
@@ -166,6 +166,15 @@ func (t *Tail) printResult(entry map[string]interface{}) {
 		value, ok := entry[f[1:len(f)]].(string)
 		if ok {
 			result = strings.Replace(result, f, value, -1)
+		}
+		mapValue, ok := entry[f[1:len(f)]].(map[string]interface{})
+		if ok {
+			for key, value := range mapValue {
+				strValue, ok := value.(string)
+				if ok {
+					result = strings.Replace(result, fmt.Sprintf("%s.%s", f, key), strValue, -1)
+				}
+			}
 		}
 	}
 	fmt.Println(result)
@@ -217,7 +226,7 @@ func main() {
 	app.Flags = config.Flags()
 	app.Action = func(c *cli.Context) {
 
-		if (c.IsSet("help")) {
+		if c.IsSet("help") {
 			cli.ShowAppHelp(c)
 			os.Exit(0)
 		}
@@ -228,13 +237,13 @@ func main() {
 		} else {
 			InitLogging(ioutil.Discard, ioutil.Discard, os.Stderr, false)
 		}
-		if (!IsConfigRelevantFlagSet(c)) {
+		if !IsConfigRelevantFlagSet(c) {
 			loadedConfig, err := LoadDefault()
-			if (err != nil) {
+			if err != nil {
 				Info.Printf("Failed to find or open previous default configuration: %s\n", err)
 			} else {
 				Info.Printf("Loaded previous config and connecting to host %s.\n", loadedConfig.SearchTarget.Url)
-				if (config.MoreVerbose) {
+				if config.MoreVerbose {
 					confJs, _ := json.MarshalIndent(loadedConfig, "", "  ")
 					Trace.Println("Loaded config:")
 					Trace.Println(string(confJs))
@@ -253,8 +262,8 @@ func main() {
 		if config.SSHTunnelParams != "" {
 			//We need to start ssh tunnel and make el client connect to local port at localhost in order to pass
 			//traffic through the tunnel
-			elurl, err := url.Parse(config.SearchTarget.Url);
-			if (err != nil) {
+			elurl, err := url.Parse(config.SearchTarget.Url)
+			if err != nil {
 				Error.Fatalf("Failed to parse hostname/port from given URL: %s\n", config.SearchTarget.Url)
 			}
 			Trace.Printf("SSHTunnel remote host: %s\n", elurl.Host)
@@ -271,7 +280,6 @@ func main() {
 		}
 
 		var configToSave *Configuration
-
 
 		args := c.Args()
 
