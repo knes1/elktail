@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"github.com/codegangsta/cli"
 	"net/url"
+	"errors"
 )
 
 //
@@ -25,7 +26,7 @@ type Tail struct {
 }
 
 // Regexp for parsing out format fields
-var formatRegexp = regexp.MustCompile("%[A-Za-z0-9@_-]+")
+var formatRegexp = regexp.MustCompile("%[A-Za-z0-9@_.-]+")
 
 // Create a new Tailer using configuration
 func NewTail(configuration *Configuration) *Tail {
@@ -34,12 +35,12 @@ func NewTail(configuration *Configuration) *Tail {
 	var client *elastic.Client
 	var err error
 	var url = configuration.SearchTarget.Url;
-	if (!strings.HasPrefix(url, "http")) {
+	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 		Trace.Printf("Adding http:// prefix to given url. Url: " + url)
 	}
 
-	if(!Must(regexp.MatchString(".*:\\d+", url)) && Must(regexp.MatchString("http://[^/]+$", url))) {
+	if !Must(regexp.MatchString(".*:\\d+", url)) && Must(regexp.MatchString("http://[^/]+$", url)) {
 		url += ":9200"
 		Trace.Printf("No port was specified, adding default port 9200 to given url. Url: " + url)
 	}
@@ -84,15 +85,6 @@ func NewTail(configuration *Configuration) *Tail {
 	return tail
 }
 
-// Helper function to avoid boilerplate error handling for regex matches
-// this way they may be used in single value context
-func Must(result bool, err error) bool {
-	if (err != nil) {
-		Error.Panic(err)
-	}
-	return result
-}
-
 // Start the tailer
 func (t *Tail) Start(follow bool, initialEntries int) {
 	result, err := t.initialSearch(initialEntries)
@@ -120,6 +112,8 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 			Error.Fatalln("Error in executing search query.", err)
 		}
 		t.processResults(result)
+
+		//Dynamic delay calculation for determining delay between search requests
 		if result.TotalHits() > 0 && delay > 500*time.Millisecond {
 			delay = 500 * time.Millisecond
 		} else if delay <= 2000*time.Millisecond {
@@ -160,11 +154,11 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 func (t *Tail) printResult(entry map[string]interface{}) {
 	Trace.Println("Result: ", entry)
 	fields := formatRegexp.FindAllString(t.queryDefinition.Format, -1)
-	Trace.Println("Fields: ", entry)
+	Trace.Println("Fields: ", fields)
 	result := t.queryDefinition.Format
 	for _, f := range fields {
-		value, ok := entry[f[1:len(f)]].(string)
-		if ok {
+		value, err := EvaluateExpression(entry, f[1:len(f)])
+		if err == nil {
 			result = strings.Replace(result, f, value, -1)
 		}
 	}
@@ -217,7 +211,7 @@ func main() {
 	app.Flags = config.Flags()
 	app.Action = func(c *cli.Context) {
 
-		if (c.IsSet("help")) {
+		if c.IsSet("help") {
 			cli.ShowAppHelp(c)
 			os.Exit(0)
 		}
@@ -228,13 +222,13 @@ func main() {
 		} else {
 			InitLogging(ioutil.Discard, ioutil.Discard, os.Stderr, false)
 		}
-		if (!IsConfigRelevantFlagSet(c)) {
+		if !IsConfigRelevantFlagSet(c) {
 			loadedConfig, err := LoadDefault()
-			if (err != nil) {
+			if err != nil {
 				Info.Printf("Failed to find or open previous default configuration: %s\n", err)
 			} else {
 				Info.Printf("Loaded previous config and connecting to host %s.\n", loadedConfig.SearchTarget.Url)
-				if (config.MoreVerbose) {
+				if config.MoreVerbose {
 					confJs, _ := json.MarshalIndent(loadedConfig, "", "  ")
 					Trace.Println("Loaded config:")
 					Trace.Println(string(confJs))
@@ -254,7 +248,7 @@ func main() {
 			//We need to start ssh tunnel and make el client connect to local port at localhost in order to pass
 			//traffic through the tunnel
 			elurl, err := url.Parse(config.SearchTarget.Url);
-			if (err != nil) {
+			if err != nil {
 				Error.Fatalf("Failed to parse hostname/port from given URL: %s\n", config.SearchTarget.Url)
 			}
 			Trace.Printf("SSHTunnel remote host: %s\n", elurl.Host)
@@ -309,6 +303,16 @@ func main() {
 
 }
 
+// Helper function to avoid boilerplate error handling for regex matches
+// this way they may be used in single value context
+func Must(result bool, err error) bool {
+	if  err != nil {
+		Error.Panic(err)
+	}
+	return result
+}
+
+// Read password from the console
 func readPasswd() string {
 	bytePassword, err := terminal.ReadPassword(0)
 	if err != nil {
@@ -316,4 +320,36 @@ func readPasswd() string {
 	}
 	fmt.Println()
 	return string(bytePassword)
+}
+
+
+// Expression evaluation function. It uses map as a model and evaluates expression given as
+// the parameter using dot syntax:
+// "foo" evaluates to model[foo]
+// "foo.bar" evaluates to model[foo][bar]
+// If a key given in the expression does not exist in the model, function will return empty string and
+// an error.
+func EvaluateExpression(model interface{}, fieldExpression string) (string, error) {
+	if fieldExpression == "" {
+		return fmt.Sprintf("%v", model), nil
+	}
+	parts := strings.SplitN(fieldExpression, ".", 2)
+	expression := parts[0]
+	var nextModel interface{} = ""
+	modelMap, ok := model.(map[string]interface{})
+	if ok {
+		value := modelMap[expression]
+		if value != nil {
+			nextModel = value
+		} else {
+			return "", errors.New(fmt.Sprintf("Failed to evaluate expression %s on given model (model map does not contain that key?).", fieldExpression))
+		}
+	} else {
+		return "", errors.New(fmt.Sprintf("Model on which %s is to be evaluated is not a map.", fieldExpression))
+	}
+	nextExpression := ""
+	if len(parts) > 1 {
+		nextExpression = parts[1]
+	}
+	return EvaluateExpression(nextModel, nextExpression)
 }
