@@ -4,6 +4,10 @@ Elktail is a command line utility to query and tail ELK (elasticsearch, logstash
 
 For additional information and usage examples take a look at this post: [Elktail - Command Line Tool for Tailing and Querying ELK Logs](http://knes1.github.io/blog/2016/2016-03-06-elktail-command-line-tool-for-tailing-and-querying-ELK-logs.html)
 
+## Feature Requests
+
+Please feel free to use the [Issue Tracker](https://github.com/knes1/elktail/issues) if you have any feature ideas or requests (and, of course, to report bugs).
+
 # Installation
 
 #### Install Using Go
