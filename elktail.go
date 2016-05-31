@@ -145,7 +145,7 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 		if err != nil {
 			Error.Fatalln("Failed parsing ElasticSearch response.", err)
 		}
-		t.lastTimeStamp = entry["@timestamp"].(string)
+		t.lastTimeStamp = entry[t.queryDefinition.TimestampField].(string)
 		t.printResult(entry)
 	}
 }
