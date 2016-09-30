@@ -240,8 +240,10 @@ func main() {
 		}
 
 		if config.User != "" {
-			fmt.Print("Enter password: ")
-			config.Password = readPasswd()
+			if config.Password == "" {
+				fmt.Print("Enter password: ")
+				config.Password = readPasswd()
+			}
 		}
 
 		//reset TunnelUrl to nothing, we'll point to the tunnel if we actually manage to create it

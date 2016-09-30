@@ -26,7 +26,7 @@ type Configuration struct {
 	InitialEntries  int
 	ListOnly        bool
 	User            string
-	Password        string `json:"-"`
+	Password        string
 	AllIndices      bool
 	Verbose         bool `json:"-"`
 	MoreVerbose     bool `json:"-"`
@@ -37,7 +37,7 @@ type Configuration struct {
 
 var confDir = ".elktail"
 var defaultConfFile = "default.json"
-var configRelevantFlags = []string{"url", "f", "i", "l", "t", "n", "u", "ssh", "all"}
+var configRelevantFlags = []string{"url", "f", "i", "l", "t", "n", "u", "p", "ssh", "all"}
 
 func userHomeDir() string {
 	if runtime.GOOS == "windows" {
@@ -164,6 +164,12 @@ func (config *Configuration) Flags() []cli.Flag {
 			Value:       "",
 			Usage:       "Username for http basic auth, password is supplied over password prompt",
 			Destination: &config.User,
+		},
+		cli.StringFlag{
+			Name:        "p",
+			Value:       "",
+			Usage:       "Password for http basic auth",
+			Destination: &config.Password,
 		},
 		cli.StringFlag{
 			Name:        "ssh,ssh-tunnel",
