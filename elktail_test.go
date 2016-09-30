@@ -1,14 +1,14 @@
 package main
-import (
-	"testing"
-	"github.io/knes1/elktail/testutils"
-)
 
+import (
+	"github.io/knes1/elktail/testutils"
+	"testing"
+)
 
 func TestResolveField(t *testing.T) {
 	model1 := map[string]interface{}{
 		"@timestamp": 3711,
-		"message":   2138,
+		"message":    2138,
 		"map": map[string]interface{}{
 			"test": "test",
 		},

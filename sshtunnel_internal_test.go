@@ -1,8 +1,9 @@
 package main
+
 import (
-	"testing"
-	"os"
 	"github.io/knes1/elktail/testutils"
+	"os"
+	"testing"
 )
 
 func TestNewSSHTunnelFromHostStrings(t *testing.T) {
@@ -27,4 +28,3 @@ func TestNewSSHTunnelFromHostStrings(t *testing.T) {
 	testutils.AssertEqualsInt(t, tunnel.Server.Port, 22)
 
 }
-

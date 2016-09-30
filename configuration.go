@@ -1,15 +1,16 @@
 package main
+
 import (
-	"runtime"
-	"os"
 	"encoding/json"
-	"io/ioutil"
 	"github.com/codegangsta/cli"
+	"io/ioutil"
+	"os"
+	"runtime"
 )
 
 type SearchTarget struct {
 	Url          string
-	TunnelUrl	 string	`json:"-"`
+	TunnelUrl    string `json:"-"`
 	IndexPattern string
 }
 
@@ -25,19 +26,18 @@ type Configuration struct {
 	InitialEntries  int
 	ListOnly        bool
 	User            string
-	Password        string  `json:"-"`
-	Verbose         bool	`json:"-"`
-	MoreVerbose     bool	`json:"-"`
-	TraceRequests   bool	`json:"-"`
+	Password        string `json:"-"`
+	AllIndices      bool
+	Verbose         bool `json:"-"`
+	MoreVerbose     bool `json:"-"`
+	TraceRequests   bool `json:"-"`
 	SSHTunnelParams string
-	SaveQuery		bool	`json:"-"`
+	SaveQuery       bool `json:"-"`
 }
 
 var confDir = ".elktail"
 var defaultConfFile = "default.json"
-var configRelevantFlags = []string{"url", "f", "i", "l", "t", "n", "u", "ssh"}
-
-
+var configRelevantFlags = []string{"url", "f", "i", "l", "t", "n", "u", "ssh", "all"}
 
 func userHomeDir() string {
 	if runtime.GOOS == "windows" {
@@ -71,55 +71,54 @@ func (c *Configuration) Copy() *Configuration {
 }
 
 func (c *Configuration) SaveDefault() {
-	confDirPath := userHomeDir() + string(os.PathSeparator) + confDir;
+	confDirPath := userHomeDir() + string(os.PathSeparator) + confDir
 	if _, err := os.Stat(confDirPath); os.IsNotExist(err) {
 		//conf directory doesn't exist, let's create it
 		err := os.Mkdir(confDirPath, 0700)
-		if (err != nil) {
+		if err != nil {
 			Error.Printf("Failed to create configuration directory %s, %s\n", confDirPath, err)
 			return
 		}
 	}
 	confJson, err := json.MarshalIndent(c, "", "  ")
-	if (err != nil) {
+	if err != nil {
 		Error.Printf("Failed to marshall configuration to json: %s.\n", err)
 		return
 	}
-	confFile := confDirPath + string(os.PathSeparator) + defaultConfFile;
+	confFile := confDirPath + string(os.PathSeparator) + defaultConfFile
 	err = ioutil.WriteFile(confFile, confJson, 0700)
-	if (err != nil) {
+	if err != nil {
 		Error.Printf("Failed to save configuration to file %s, %s\n", confFile, err)
 		return
 	}
 }
 
-func LoadDefault() (conf *Configuration, err error)  {
-	confDirPath := userHomeDir() + string(os.PathSeparator) + confDir;
+func LoadDefault() (conf *Configuration, err error) {
+	confDirPath := userHomeDir() + string(os.PathSeparator) + confDir
 	if _, err := os.Stat(confDirPath); os.IsNotExist(err) {
 		//conf directory doesn't exist, let's create it
 		err := os.Mkdir(confDirPath, 0700)
-		if (err != nil) {
+		if err != nil {
 			return nil, err
 		}
 	}
-	confFile := confDirPath + string(os.PathSeparator) + defaultConfFile;
+	confFile := confDirPath + string(os.PathSeparator) + defaultConfFile
 	var config *Configuration
 	confBytes, err := ioutil.ReadFile(confFile)
-	if (err != nil) {
+	if err != nil {
 		return nil, err
 	}
 	err = json.Unmarshal(confBytes, &config)
-	if (err != nil) {
+	if err != nil {
 		return nil, err
 	}
 	return config, nil
 }
 
-
 func (config *Configuration) Flags() []cli.Flag {
 	cli.VersionFlag.Usage = "Print the version"
 	cli.HelpFlag.Usage = "Show help"
-	return []cli.Flag {
+	return []cli.Flag{
 		cli.StringFlag{
 			Name:        "url",
 			Value:       "http://127.0.0.1:9200",
@@ -173,6 +172,11 @@ func (config *Configuration) Flags() []cli.Flag {
 			Destination: &config.SSHTunnelParams,
 		},
 		cli.BoolFlag{
+			Name:        "all",
+			Usage:       "Search all indixes, not just the latest",
+			Destination: &config.AllIndices,
+		},
+		cli.BoolFlag{
 			Name:        "v1",
 			Usage:       "Enable verbose output (for debugging)",
 			Destination: &config.Verbose,
@@ -192,7 +196,7 @@ func (config *Configuration) Flags() []cli.Flag {
 	}
 }
 
-func IsConfigRelevantFlagSet(c *cli.Context)  bool {
+func IsConfigRelevantFlagSet(c *cli.Context) bool {
 	for _, flag := range configRelevantFlags {
 		if c.IsSet(flag) {
 			return true
@@ -200,4 +204,3 @@ func IsConfigRelevantFlagSet(c *cli.Context)  bool {
 	}
 	return false
 }
-
