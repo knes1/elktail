@@ -1,14 +1,14 @@
 package main
 
 import (
-	"log"
 	"io"
+	"log"
 )
 
 var (
-	Trace   *log.Logger
-	Info    *log.Logger
-	Error   *log.Logger
+	Trace *log.Logger
+	Info  *log.Logger
+	Error *log.Logger
 )
 
 func InitLogging(traceHandle io.Writer, infoHandle io.Writer, errorHandle io.Writer, printLines bool) {

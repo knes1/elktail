@@ -2,17 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/codegangsta/cli"
+	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/olivere/elastic.v2"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
-	"golang.org/x/crypto/ssh/terminal"
-	"github.com/codegangsta/cli"
-	"net/url"
-	"errors"
 )
 
 //
@@ -34,7 +34,7 @@ func NewTail(configuration *Configuration) *Tail {
 
 	var client *elastic.Client
 	var err error
-	var url = configuration.SearchTarget.Url;
+	var url = configuration.SearchTarget.Url
 	if !strings.HasPrefix(url, "http") {
 		url = "http://" + url
 		Trace.Printf("Adding http:// prefix to given url. Url: " + url)
@@ -76,12 +76,15 @@ func NewTail(configuration *Configuration) *Tail {
 
 	tail.queryDefinition = &configuration.QueryDefinition
 
-	indices, err := tail.client.IndexNames()
-	if err != nil {
-		Error.Fatalln("Could not fetch available indices.", err)
+	if configuration.AllIndices {
+		tail.index = configuration.SearchTarget.IndexPattern
+	} else {
+		indices, err := tail.client.IndexNames()
+		if err != nil {
+			Error.Fatalln("Could not fetch available indices.", err)
+		}
+		tail.index = tail.findLastIndex(indices, configuration.SearchTarget.IndexPattern)
 	}
-
-	tail.index = tail.findLastIndex(indices, configuration.SearchTarget.IndexPattern)
 	return tail
 }
 
@@ -126,13 +129,12 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 // in order to fetch the timestamp which we will use in subsequent follow searches
 func (t *Tail) initialSearch(initialEntries int) (*elastic.SearchResult, error) {
 	return t.client.Search().
-	Index(t.index).
-	Sort(t.queryDefinition.TimestampField, false).
-	Query(t.buildSearchQuery()).
-	From(0).Size(initialEntries).
-	Do()
+		Index(t.index).
+		Sort(t.queryDefinition.TimestampField, false).
+		Query(t.buildSearchQuery()).
+		From(0).Size(initialEntries).
+		Do()
 }
-
 
 // Process the results (e.g. prints them out based on configured format)
 func (t *Tail) processResults(searchResult *elastic.SearchResult) {
@@ -238,8 +240,10 @@ func main() {
 		}
 
 		if config.User != "" {
-			fmt.Print("Enter password: ")
-			config.Password = readPasswd()
+			if config.Password == "" {
+				fmt.Print("Enter password: ")
+				config.Password = readPasswd()
+			}
 		}
 
 		//reset TunnelUrl to nothing, we'll point to the tunnel if we actually manage to create it
@@ -247,7 +251,7 @@ func main() {
 		if config.SSHTunnelParams != "" {
 			//We need to start ssh tunnel and make el client connect to local port at localhost in order to pass
 			//traffic through the tunnel
-			elurl, err := url.Parse(config.SearchTarget.Url);
+			elurl, err := url.Parse(config.SearchTarget.Url)
 			if err != nil {
 				Error.Fatalf("Failed to parse hostname/port from given URL: %s\n", config.SearchTarget.Url)
 			}
@@ -265,7 +269,6 @@ func main() {
 		}
 
 		var configToSave *Configuration
-
 
 		args := c.Args()
 
@@ -306,7 +309,7 @@ func main() {
 // Helper function to avoid boilerplate error handling for regex matches
 // this way they may be used in single value context
 func Must(result bool, err error) bool {
-	if  err != nil {
+	if err != nil {
 		Error.Panic(err)
 	}
 	return result
@@ -321,7 +324,6 @@ func readPasswd() string {
 	fmt.Println()
 	return string(bytePassword)
 }
-
 
 // Expression evaluation function. It uses map as a model and evaluates expression given as
 // the parameter using dot syntax:
