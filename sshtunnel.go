@@ -1,3 +1,10 @@
+/* Copyright (C) 2016 Krešimir Nesek
+ *
+ * Based on blog post by Svett Ralchev: http://blog.ralch.com/tutorial/golang-ssh-tunneling/
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license. See the LICENSE file for details.
+ */
 package main
 
 import (

@@ -1,3 +1,9 @@
+/* Copyright (C) 2016 Krešimir Nesek
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license.  See the LICENSE file for details.
+ */
+
 package main
 import (
 	"runtime"
@@ -17,13 +23,15 @@ type QueryDefinition struct {
 	Terms          []string
 	Format         string
 	TimestampField string
+	AfterDateTime  string  `json:"-"`
+	BeforeDateTime string  `json:"-"`
 }
 
 type Configuration struct {
 	SearchTarget    SearchTarget
 	QueryDefinition QueryDefinition
 	InitialEntries  int
-	ListOnly        bool
+	ListOnly        bool	`json:"-"`
 	User            string
 	Password        string  `json:"-"`
 	Verbose         bool	`json:"-"`
@@ -35,7 +43,9 @@ type Configuration struct {
 
 var confDir = ".elktail"
 var defaultConfFile = "default.json"
-var configRelevantFlags = []string{"url", "f", "i", "l", "t", "n", "u", "ssh"}
+
+//When changing this array, make sure to also make appropriate changes in CopyConfigRelevantSettingsTo
+var configRelevantFlags = []string{"url", "f", "i", "t", "u", "ssh"}
 
 
 
@@ -52,23 +62,40 @@ func userHomeDir() string {
 
 func (c *Configuration) Copy() *Configuration {
 	result := new(Configuration)
-	result.SearchTarget.TunnelUrl = c.SearchTarget.TunnelUrl
-	result.SearchTarget.Url = c.SearchTarget.Url
-	result.SearchTarget.IndexPattern = c.SearchTarget.IndexPattern
-	result.QueryDefinition.Format = c.QueryDefinition.Format
-	result.QueryDefinition.Terms = make([]string, len(c.QueryDefinition.Terms))
-	copy(result.QueryDefinition.Terms, c.QueryDefinition.Terms)
-	result.QueryDefinition.TimestampField = c.QueryDefinition.TimestampField
-	result.InitialEntries = c.InitialEntries
-	result.ListOnly = c.ListOnly
-	result.User = c.User
-	result.Password = c.Password
-	result.Verbose = c.Verbose
-	result.MoreVerbose = c.MoreVerbose
-	result.TraceRequests = c.TraceRequests
-	result.SSHTunnelParams = c.SSHTunnelParams
+
+	c.CopyConfigRelevantSettingsTo(result)
+	c.CopyNonConfigRelevantSettingsTo(result)
+
 	return result
 }
+
+//When making change here make sure configRelevantFlags global var is also changed
+func (c *Configuration) CopyConfigRelevantSettingsTo(dest *Configuration) {
+	//copy config relevant configuration settings
+	dest.SearchTarget.TunnelUrl = c.SearchTarget.TunnelUrl
+	dest.SearchTarget.Url = c.SearchTarget.Url
+	dest.SearchTarget.IndexPattern = c.SearchTarget.IndexPattern
+	dest.QueryDefinition.Format = c.QueryDefinition.Format
+	dest.QueryDefinition.Terms = make([]string, len(c.QueryDefinition.Terms))
+	copy(dest.QueryDefinition.Terms, c.QueryDefinition.Terms)
+	dest.User = c.User
+	dest.SSHTunnelParams = c.SSHTunnelParams
+}
+
+func (c *Configuration) CopyNonConfigRelevantSettingsTo(dest *Configuration) {
+	//copy non-config relevant settings
+	dest.QueryDefinition.TimestampField = c.QueryDefinition.TimestampField
+	dest.QueryDefinition.AfterDateTime = c.QueryDefinition.AfterDateTime
+	dest.QueryDefinition.BeforeDateTime = c.QueryDefinition.BeforeDateTime
+	dest.ListOnly = c.ListOnly
+	dest.InitialEntries = c.InitialEntries
+	dest.Password = c.Password
+	dest.Verbose = c.Verbose
+	dest.MoreVerbose = c.MoreVerbose
+	dest.TraceRequests = c.TraceRequests
+}
+
+
 
 func (c *Configuration) SaveDefault() {
 	confDirPath := userHomeDir() + string(os.PathSeparator) + confDir;
@@ -123,25 +150,25 @@ func (config *Configuration) Flags() []cli.Flag {
 		cli.StringFlag{
 			Name:        "url",
 			Value:       "http://127.0.0.1:9200",
-			Usage:       "ElasticSearch URL",
+			Usage:       "(*) ElasticSearch URL",
 			Destination: &config.SearchTarget.Url,
 		},
 		cli.StringFlag{
 			Name:        "f,format",
 			Value:       "%message",
-			Usage:       "Message format for the entries - field names are referenced using % sign, for example '%@timestamp %message'",
+			Usage:       "(*) Message format for the entries - field names are referenced using % sign, for example '%@timestamp %message'",
 			Destination: &config.QueryDefinition.Format,
 		},
 		cli.StringFlag{
 			Name:        "i,index-pattern",
 			Value:       "logstash-[0-9].*",
-			Usage:       "Index pattern - elktail will attempt to tail only the latest of logstash's indexes matched by the pattern",
+			Usage:       "(*) Index pattern - elktail will attempt to tail only the latest of logstash's indexes matched by the pattern",
 			Destination: &config.SearchTarget.IndexPattern,
 		},
 		cli.StringFlag{
 			Name:        "t,timestamp-field",
 			Value:       "@timestamp",
-			Usage:       "Timestamp field name used for tailing entries",
+			Usage:       "(*) Timestamp field name used for tailing entries",
 			Destination: &config.QueryDefinition.TimestampField,
 		},
 		cli.BoolFlag{
@@ -155,6 +182,18 @@ func (config *Configuration) Flags() []cli.Flag {
 			Usage:       "Number of entries fetched initially",
 			Destination: &config.InitialEntries,
 		},
+		cli.StringFlag{
+			Name:        "a,after",
+			Value:       "",
+			Usage:       "List results after specified date (example: -a \"2016-06-17T15:00\")",
+			Destination: &config.QueryDefinition.AfterDateTime,
+		},
+		cli.StringFlag{
+			Name:        "b,before",
+			Value:       "",
+			Usage:       "List results before specified date (example: -b \"2016-06-17T15:00\")",
+			Destination: &config.QueryDefinition.BeforeDateTime,
+		},
 		cli.BoolFlag{
 			Name:        "s",
 			Usage:       "Save query terms - next invocation of elktail (without parameters) will use saved query terms. Any additional terms specified will be applied with AND operator to saved terms",
@@ -163,13 +202,13 @@ func (config *Configuration) Flags() []cli.Flag {
 		cli.StringFlag{
 			Name:        "u",
 			Value:       "",
-			Usage:       "Username for http basic auth, password is supplied over password prompt",
+			Usage:       "(*) Username for http basic auth, password is supplied over password prompt",
 			Destination: &config.User,
 		},
 		cli.StringFlag{
 			Name:        "ssh,ssh-tunnel",
 			Value:       "",
-			Usage:       "Use ssh tunnel to connect. Format for the argument is [localport:][user@]sshhost.tld[:sshport]",
+			Usage:       "(*) Use ssh tunnel to connect. Format for the argument is [localport:][user@]sshhost.tld[:sshport]",
 			Destination: &config.SSHTunnelParams,
 		},
 		cli.BoolFlag{
@@ -192,7 +231,16 @@ func (config *Configuration) Flags() []cli.Flag {
 	}
 }
 
-func IsConfigRelevantFlagSet(c *cli.Context)  bool {
+//Elktail will work in list-only (no follow) mode if appropriate flag is set or if query has date-time filtering enabled
+func (c *Configuration) IsListOnly() bool {
+	return c.ListOnly || c.QueryDefinition.IsDateTimeFiltered()
+}
+
+func (q *QueryDefinition) IsDateTimeFiltered() bool {
+	return q.AfterDateTime != "" || q.BeforeDateTime != ""
+}
+
+func IsConfigRelevantFlagSet(c *cli.Context) bool {
 	for _, flag := range configRelevantFlags {
 		if c.IsSet(flag) {
 			return true
