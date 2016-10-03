@@ -1,3 +1,10 @@
+/* Copyright (C) 2016 Krešimir Nesek
+ *
+ * Based on idea by William Kennedy: https://www.goinggo.net/2013/11/using-log-package-in-go.html
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license.  See the LICENSE file for details.
+ */
 package main
 
 import (

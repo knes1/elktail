@@ -1,3 +1,8 @@
+/* Copyright (C) 2016 Krešimir Nesek
+ *
+ * This software may be modified and distributed under the terms
+ * of the MIT license. See the LICENSE file for details.
+ */
 package main
 
 import (
@@ -21,12 +26,15 @@ import (
 type Tail struct {
 	client          *elastic.Client  //elastic search client that we'll use to contact EL
 	queryDefinition *QueryDefinition //structure containing query definition and formatting
-	index           string           //latest logstash index name, we will tail this index
+	indices         []string         //indices to search through
 	lastTimeStamp   string           //timestamp of the last result
+	order           bool			 //search order - true = ascending (may be reversed in case date-after filtering)
 }
+
 
 // Regexp for parsing out format fields
 var formatRegexp = regexp.MustCompile("%[A-Za-z0-9@_.-]+")
+const dateFormatDMY = "2006-01-02"
 
 // Create a new Tailer using configuration
 func NewTail(configuration *Configuration) *Tail {
@@ -76,13 +84,48 @@ func NewTail(configuration *Configuration) *Tail {
 
 	tail.queryDefinition = &configuration.QueryDefinition
 
+	tail.selectIndices(configuration)
+
+	//If we're date filtering on start date, then the sort needs to be ascending
+	if (configuration.QueryDefinition.AfterDateTime != "") {
+		tail.order = true //ascending
+	} else {
+		tail.order = false //descending
+	}
+	return tail
+}
+
+// Selects appropriate indices in EL based on configuration. This basically means that if query is date filtered,
+// then it attempts to select indices in the filtered date range, otherwise it selects the last index.
+func (tail *Tail) selectIndices(configuration *Configuration) {
 	indices, err := tail.client.IndexNames()
 	if err != nil {
 		Error.Fatalln("Could not fetch available indices.", err)
 	}
 
-	tail.index = tail.findLastIndex(indices, configuration.SearchTarget.IndexPattern)
-	return tail
+	if configuration.QueryDefinition.IsDateTimeFiltered() {
+		startDate := configuration.QueryDefinition.AfterDateTime
+		endDate := configuration.QueryDefinition.BeforeDateTime
+		if (startDate == "" && endDate != "") {
+			lastIndex := findLastIndex(indices, configuration.SearchTarget.IndexPattern)
+			lastIndexDate := extractYMDDate(lastIndex, ".")
+			if lastIndexDate.Before(extractYMDDate(endDate, "-")) {
+				startDate = lastIndexDate.Format(dateFormatDMY)
+			} else {
+				startDate = endDate
+			}
+		}
+		if endDate == "" {
+			endDate = time.Now().Format(dateFormatDMY)
+		}
+		tail.indices = findIndicesForDateRange(indices, configuration.SearchTarget.IndexPattern, startDate, endDate)
+
+	} else {
+		index := findLastIndex(indices, configuration.SearchTarget.IndexPattern)
+		result := [...]string { index }
+		tail.indices = result[:]
+	}
+	Info.Printf("Using indices: %s", tail.indices)
 }
 
 // Start the tailer
@@ -98,7 +141,7 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 		if t.lastTimeStamp != "" {
 			//we can execute follow up timestamp filtered query only if we fetched at least 1 result in initial query
 			result, err = t.client.Search().
-				Index(t.index).
+				Indices(t.indices...).
 				Sort(t.queryDefinition.TimestampField, false).
 				From(0).
 				Size(9000). //TODO: needs rewrite this using scrolling, as this implementation may loose entries if there's more than 9K entries per sleep period
@@ -126,8 +169,8 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 // in order to fetch the timestamp which we will use in subsequent follow searches
 func (t *Tail) initialSearch(initialEntries int) (*elastic.SearchResult, error) {
 	return t.client.Search().
-	Index(t.index).
-	Sort(t.queryDefinition.TimestampField, false).
+	Indices(t.indices...).
+	Sort(t.queryDefinition.TimestampField, t.order).
 	Query(t.buildSearchQuery()).
 	From(0).Size(initialEntries).
 	Do()
@@ -138,17 +181,32 @@ func (t *Tail) initialSearch(initialEntries int) (*elastic.SearchResult, error) 
 func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 	Trace.Printf("Fetched page of %d results out of %d total.\n", len(searchResult.Hits.Hits), searchResult.Hits.TotalHits)
 	hits := searchResult.Hits.Hits
-	for i := len(hits) - 1; i >= 0; i-- {
-		hit := hits[i]
-		var entry map[string]interface{}
-		err := json.Unmarshal(*hit.Source, &entry)
-		if err != nil {
-			Error.Fatalln("Failed parsing ElasticSearch response.", err)
+
+	if t.order {
+		for i := 0; i < len(hits); i++ {
+			hit := hits[i]
+			entry := t.processHit(hit)
+			t.lastTimeStamp = entry["@timestamp"].(string)
 		}
-		t.lastTimeStamp = entry["@timestamp"].(string)
-		t.printResult(entry)
+	} else { //when results are in descending order, we need to process them in reverse
+		for i := len(hits) - 1; i >= 0; i-- {
+			hit := hits[i]
+			entry := t.processHit(hit)
+			t.lastTimeStamp = entry["@timestamp"].(string)
+		}
 	}
 }
+
+func (t *Tail) processHit(hit *elastic.SearchHit) map[string]interface{} {
+	var entry map[string]interface{}
+	err := json.Unmarshal(*hit.Source, &entry)
+	if err != nil {
+		Error.Fatalln("Failed parsing ElasticSearch response.", err)
+	}
+	t.printResult(entry)
+	return entry;
+}
+
 
 // Print result according to format
 func (t *Tail) printResult(entry map[string]interface{}) {
@@ -166,14 +224,39 @@ func (t *Tail) printResult(entry map[string]interface{}) {
 }
 
 func (t *Tail) buildSearchQuery() elastic.Query {
+	var query elastic.Query
 	if len(t.queryDefinition.Terms) > 0 {
 		result := strings.Join(t.queryDefinition.Terms, " ")
 		Trace.Printf("Running query string query: %s", result)
-		return elastic.NewQueryStringQuery(result)
+		query = elastic.NewQueryStringQuery(result)
 	} else {
-		Trace.Printf("Running query match all query.")
-		return elastic.NewMatchAllQuery()
+		Trace.Print("Running query match all query.")
+		query = elastic.NewMatchAllQuery()
 	}
+
+	if t.queryDefinition.IsDateTimeFiltered() {
+		// we have date filtering turned on, apply filter
+		filter := t.buildDateTimeRangeFilter()
+		query = elastic.NewFilteredQuery(query).Filter(filter)
+	}
+	return query
+}
+
+//Builds range filter on timestamp field. You should only call this if start or end date times are defined
+//in query definition
+func (t *Tail) buildDateTimeRangeFilter() elastic.RangeFilter {
+	filter := elastic.NewRangeFilter(t.queryDefinition.TimestampField)
+	if (t.queryDefinition.AfterDateTime != "") {
+		Trace.Printf("Date range query - timestamp after: %s", t.queryDefinition.AfterDateTime)
+		filter = filter.IncludeLower(true).
+			   From(t.queryDefinition.AfterDateTime)
+	}
+	if (t.queryDefinition.BeforeDateTime != "") {
+		Trace.Printf("Date range query - timestamp before: %s", t.queryDefinition.BeforeDateTime)
+		filter = filter.IncludeUpper(false).
+		       To(t.queryDefinition.BeforeDateTime)
+	}
+	return filter
 }
 
 func (t *Tail) buildTimestampFilteredQuery() elastic.Query {
@@ -184,7 +267,41 @@ func (t *Tail) buildTimestampFilteredQuery() elastic.Query {
 	return query
 }
 
-func (t *Tail) findLastIndex(indices []string, indexPattern string) string {
+// Extracts and parses YMD date (year followed by month followed by day) from a given string. YMD values are separated by
+// separator character given as argument.
+func extractYMDDate(dateStr, separator string) time.Time {
+	dateRegexp := regexp.MustCompile(fmt.Sprintf(`(\d{4}%s\d{2}%s\d{2})`, separator, separator))
+	match := dateRegexp.FindAllStringSubmatch(dateStr, -1)
+	if len(match) == 0 {
+		Error.Fatalf("Failed to extract date: %s\n", dateStr)
+	}
+	result := match[0]
+	parsed, err := time.Parse(fmt.Sprintf("2006%s01%s02", separator, separator), result[0])
+	if err != nil {
+		Error.Fatalf("Failed parsing date: %s", err)
+	}
+	return parsed
+}
+
+
+func findIndicesForDateRange(indices []string, indexPattern string, startDate string, endDate string) []string {
+	start := extractYMDDate(startDate , "-")
+	end := extractYMDDate(endDate , "-")
+	result := make([]string, 0, len(indices))
+	for _, idx := range indices {
+		matched, _ := regexp.MatchString(indexPattern, idx)
+		if matched {
+			idxDate := extractYMDDate(idx, ".")
+			if (idxDate.After(start) || idxDate.Equal(start)) && (idxDate.Before(end) || idxDate.Equal(end)) {
+				result = append(result, idx)
+			}
+ 		}
+	}
+	return result
+}
+
+
+func findLastIndex(indices []string, indexPattern string) string {
 	var lastIdx string
 	for _, idx := range indices {
 		matched, _ := regexp.MatchString(indexPattern, idx)
@@ -207,7 +324,7 @@ func main() {
 	app.Usage = "utility for tailing Logstash logs stored in ElasticSearch"
 	app.HideHelp = true
 	app.Version = VERSION
-	app.ArgsUsage = "[query-string]"
+	app.ArgsUsage = "[query-string]\n   Options marked with (*) are saved between invocations of the command. Each time you specify an option marked with (*) previously stored settings are erased."
 	app.Flags = config.Flags()
 	app.Action = func(c *cli.Context) {
 
@@ -228,12 +345,17 @@ func main() {
 				Info.Printf("Failed to find or open previous default configuration: %s\n", err)
 			} else {
 				Info.Printf("Loaded previous config and connecting to host %s.\n", loadedConfig.SearchTarget.Url)
+				loadedConfig.CopyConfigRelevantSettingsTo(config)
+
 				if config.MoreVerbose {
 					confJs, _ := json.MarshalIndent(loadedConfig, "", "  ")
 					Trace.Println("Loaded config:")
 					Trace.Println(string(confJs))
+
+					confJs, _ = json.MarshalIndent(loadedConfig, "", "  ")
+					Trace.Println("Final (merged) config:")
+					Trace.Println(string(confJs))
 				}
-				config = loadedConfig
 			}
 		}
 
@@ -296,7 +418,7 @@ func main() {
 		//If we don't exit here we can save the defaults
 		configToSave.SaveDefault()
 
-		tail.Start(!config.ListOnly, config.InitialEntries)
+		tail.Start(!config.IsListOnly(), config.InitialEntries)
 	}
 
 	app.Run(os.Args)
