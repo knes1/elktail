@@ -68,17 +68,17 @@ Elktail also supports ES query string searches as the argument. For example, in 
 
 `elktail host:myhost.example.com AND level:error`
 
-# Specifying Date Ranges
+## Specifying Date Ranges
 
 Elktail supports specifying date range in order to query the logs at specific times. You can specify the date range by using after `-a` and before `-b` options followed by the date. When specifying dates use the following format: YYYY-MM-ddTHH:mm:ss.SSS (e.g 2016-06-17T15:20:00.000). Time part is optional and you can ommit it (e.g. you can leave out seconds, miliseconds, or the whole time part and only specify the date).
 
 Since tailing the logs when using date ranges does not really make sense, when you spacify date range options list-only mode will be implied and following is automatically disabled (e.g. `elktail` will behave as if you specified `-l` option)
 
-## Date Ranges and Elastic's Logstash Indices
+#### Date Ranges and Elastic's Logstash Indices
 
 Logstash stores the logs in elasticsearch in one-per-day indices. When specifying date range, `elktail` needs to search through appropriate indices depending on the dates selected. Currently, this will only work if your index name pattern contains dates in YYYY.MM.dd format (which is logstash's default). 
 
-## Examples
+#### Examples
 
 Search for errors after 3PM, April 1st, 2016:
 `elktail -a 2016-04-01T15:00 level:error`
