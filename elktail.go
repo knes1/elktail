@@ -28,6 +28,7 @@ type Tail struct {
 	queryDefinition *QueryDefinition //structure containing query definition and formatting
 	indices         []string         //indices to search through
 	lastTimeStamp   string           //timestamp of the last result
+	lastIDs 		[]string		 //result IDs that had last timestamp
 	order           bool			 //search order - true = ascending (may be reversed in case date-after filtering)
 }
 
@@ -182,17 +183,34 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 	Trace.Printf("Fetched page of %d results out of %d total.\n", len(searchResult.Hits.Hits), searchResult.Hits.TotalHits)
 	hits := searchResult.Hits.Hits
 
+	// We need to track last N entries that had the timestamp identical to last timestamp. This is done to
+	// avoid loosing entries that have identical timestamp when executing next query. When tailing, we will
+	// issue next query which will be filtered so that timestamps are greater or
+	// equal to last timestamp. Since we are tracking IDs of entries with last timestamp form previous query,
+	// we can use the IDs to remove the duplicates. https://github.com/knes1/elktail/issues/11
+
 	if t.order {
 		for i := 0; i < len(hits); i++ {
 			hit := hits[i]
 			entry := t.processHit(hit)
-			t.lastTimeStamp = entry[t.queryDefinition.TimestampField].(string)
+			timeStamp := entry[t.queryDefinition.TimestampField].(string)
+			if timeStamp != t.lastTimeStamp {
+				t.lastTimeStamp = timeStamp
+				t.lastIDs = nil
+			}
+			t.lastIDs = append(t.lastIDs, hit.Id)
 		}
+
 	} else { //when results are in descending order, we need to process them in reverse
 		for i := len(hits) - 1; i >= 0; i-- {
 			hit := hits[i]
 			entry := t.processHit(hit)
-			t.lastTimeStamp = entry[t.queryDefinition.TimestampField].(string)
+			timeStamp := entry[t.queryDefinition.TimestampField].(string)
+			if timeStamp != t.lastTimeStamp {
+				t.lastTimeStamp = timeStamp
+				t.lastIDs = nil
+			}
+			t.lastIDs = append(t.lastIDs, hit.Id)
 		}
 	}
 }
@@ -260,10 +278,12 @@ func (t *Tail) buildDateTimeRangeFilter() elastic.RangeFilter {
 }
 
 func (t *Tail) buildTimestampFilteredQuery() elastic.Query {
-	query := elastic.NewFilteredQuery(t.buildSearchQuery()).Filter(
-		elastic.NewRangeFilter(t.queryDefinition.TimestampField).
-			IncludeUpper(false).
-			Gt(t.lastTimeStamp))
+	timeStampFilter := elastic.NewRangeFilter(t.queryDefinition.TimestampField).
+			Gte(t.lastTimeStamp)
+	idFilter := elastic.NewNotFilter(elastic.NewIdsFilter().Ids(t.lastIDs...))
+	filter := elastic.NewAndFilter(timeStampFilter, idFilter)
+
+	query := elastic.NewFilteredQuery(t.buildSearchQuery()).Filter(filter)
 	return query
 }
 
