@@ -68,40 +68,55 @@ Elktail also supports ES query string searches as the argument. For example, in 
 
 `elktail host:myhost.example.com AND level:error`
 
-# Other Parameters
+## Specifying Date Ranges
+
+Elktail supports specifying date range in order to query the logs at specific times. You can specify the date range by using after `-a` and before `-b` options followed by the date. When specifying dates use the following format: YYYY-MM-ddTHH:mm:ss.SSS (e.g 2016-06-17T15:20:00.000). Time part is optional and you can ommit it (e.g. you can leave out seconds, miliseconds, or the whole time part and only specify the date).
+
+Since tailing the logs when using date ranges does not really make sense, when you spacify date range options list-only mode will be implied and following is automatically disabled (e.g. `elktail` will behave as if you specified `-l` option)
+
+#### Date Ranges and Elastic's Logstash Indices
+
+Logstash stores the logs in elasticsearch in one-per-day indices. When specifying date range, `elktail` needs to search through appropriate indices depending on the dates selected. Currently, this will only work if your index name pattern contains dates in YYYY.MM.dd format (which is logstash's default). 
+
+#### Examples
+
+Search for errors after 3PM, April 1st, 2016:
+`elktail -a 2016-04-01T15:00 level:error`
+
+Search for errors betweem 1PM and 3PM on July 1st, 2016:
+`elktail -a 2016-07-01T13:00 -b 2016-07-01T15:00 level:error`
+
+
+# Other Options
 
 
 <pre>
-   --url "http://127.0.0.1:9200"            ElasticSearch URL
+   Options marked with (*) are saved between invocations of the command. Each time you specify an option marked with (*) previously
+   stored settings are erased.
    
-   -f, --format "%message"                  Message format for the entries - field names are 
-                                            referenced using % sign, for example '%@timestamp %message'
-                                            
-   -i, --index-pattern "logstash-[0-9].*"   Index pattern - elktail will attempt to tail only the latest 
-                                            of logstash's indexes matched by the pattern
-                                            
-   -t, --timestamp-field "@timestamp"       Timestamp field name used for tailing entries
+   --url "http://127.0.0.1:9200"           (*) ElasticSearch URL
+   -f, --format "%message"                 (*) Message format for the entries - field names are referenced using % sign,
+                                           for example '%@timestamp %message'
+                                          
+   -i, --index-pattern "logstash-[0-9].*"  (*) Index pattern - elktail will attempt to tail only the latest of logstash's indexes
+                                           matched by the pattern
+                                          
+   -t, --timestamp-field "@timestamp"      (*) Timestamp field name used for tailing entries
+   -l, --list-only                         Just list the results once, do not follow
+   -n "50"                                 Number of entries fetched initially
+   -a, --after                             List results after specified date (example: -a "2016-06-17T15:00")
+   -b, --before                            List results before specified date (example: -b "2016-06-17T15:00")
+   -s                                      Save query terms - next invocation of elktail (without parameters) will use saved query
+                                           terms. Any additional terms specified will be applied with AND operator to saved terms
+                                           
+   -u                                      (*) Username for http basic auth, password is supplied over password prompt
+   --ssh, --ssh-tunnel                     (*) Use ssh tunnel to connect. Format for the 
+                                           argument is [localport:][user@]sshhost.tld[:sshport]
+                                          
+   --v1                                    Enable verbose output (for debugging)
+   --v2                                    Enable even more verbose output (for debugging)
+   --v3                                    Same as v2 but also trace requests and responses (for debugging)
+   --version, -v                           Print the version
+   --help, -h                              Show help
    
-   -l, --list-only                          Just list the results once, do not follow
-   
-   -n "50"                                  Number of entries fetched initially
-   
-   -s                                       Save query terms - next invocation of elktail (without parameters)
-                                            will use saved query terms. Any additional terms specified will be 
-                                            applied with AND operator to saved terms
-                                            
-   -u                                       Username for http basic auth, password is supplied over password prompt
-   
-   --ssh, --ssh-tunnel                      Use ssh tunnel to connect. Format for the argument 
-                                            is [localport:][user@]sshhost.tld[:sshport]
-                                            
-   --v1                                     Enable verbose output (for debugging)
-   
-   --v2                                     Enable even more verbose output (for debugging)
-   
-   --v3                                     Same as v2 but also trace requests and responses (for debugging)
-   
-   --version, -v                            Print the version
-   
-   --help, -h                               Show help
 </pre>
