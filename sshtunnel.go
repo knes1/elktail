@@ -17,6 +17,9 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"regexp"
 	"strconv"
+	"os/exec"
+	"strings"
+	"errors"
 )
 
 type Endpoint struct {
@@ -92,6 +95,28 @@ func SSHAgent() ssh.AuthMethod {
 	return nil
 }
 
+func GetUser() (string, error) {
+	//attempt fetching logged in user via os/user package. It may not work when cross-compiled due to CGO requirement.
+	//More info at: https://github.com/golang/go/issues/11797
+	osUser, err := user.Current()
+	Trace.Printf("os/user detected user as %v", osUser)
+	if err != nil || osUser == nil || osUser.Username == "" {
+		// os/user didn't work. Let's try using "whoami" command
+		path, err := exec.LookPath("whoami")
+		if err != nil {
+			//whoami not found... we're giving up
+			return "", errors.New("Could not detect current user")
+		}
+		out, err := exec.Command(path).Output()
+		if err != nil {
+			//something went wrong, giving up
+			return "", errors.New("Could not detect current user")
+		}
+		return strings.TrimSpace(string(out)), nil
+	}
+	return osUser.Username, nil
+}
+
 //
 // sshHostDef user@sshhost.tld:port
 // tunnelDef  local_port:remote_host:remote_port
@@ -104,12 +129,17 @@ func NewSSHTunnelFromHostStrings(sshHostDef string, tunnelDef string) *SSHTunnel
 	}
 	result := match[0]
 	sshUser := result[2]
-	if sshUser == "" {
-		osUser, _ := user.Current()
-		sshUser = osUser.Username
-	}
 	sshHost := result[3]
 	sshPort := parsePort(result[5], 22)
+	if sshUser == "" {
+		osUser, err := GetUser()
+		if err != nil {
+			Error.Printf("Could not detect current username to use when connecting via SSH. Please specify a username " +
+					"when specifying SSH host (e.g. your_username@%s)\n", sshHost)
+			os.Exit(1)
+		}
+		sshUser = osUser
+	}
 
 	Trace.Printf("SSH Tunnel: Server - User: %s, Host: %s, Port: %d\n", sshUser, sshHost, sshPort)
 
