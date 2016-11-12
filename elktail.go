@@ -233,10 +233,8 @@ func (t *Tail) printResult(entry map[string]interface{}) {
 	Trace.Println("Fields: ", fields)
 	result := t.queryDefinition.Format
 	for _, f := range fields {
-		value, err := EvaluateExpression(entry, f[1:len(f)])
-		if err == nil {
-			result = strings.Replace(result, f, value, -1)
-		}
+		value, _ := EvaluateExpression(entry, f[1:])
+		result = strings.Replace(result, f, value, -1)
 	}
 	fmt.Println(result)
 }
