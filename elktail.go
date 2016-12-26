@@ -24,18 +24,28 @@ import (
 // Structure that holds data necessary to perform tailing.
 //
 type Tail struct {
-	client          *elastic.Client  //elastic search client that we'll use to contact EL
-	queryDefinition *QueryDefinition //structure containing query definition and formatting
-	indices         []string         //indices to search through
-	lastTimeStamp   string           //timestamp of the last result
-	lastIDs 		[]string		 //result IDs that had last timestamp
-	order           bool			 //search order - true = ascending (may be reversed in case date-after filtering)
+	client           *elastic.Client  //elastic search client that we'll use to contact EL
+	queryDefinition  *QueryDefinition //structure containing query definition and formatting
+	indices          []string         //indices to search through
+	lastTimeStamp    string           //timestamp of the last result
+	lastIDs 		 []DisplayedEntry //result IDs that we fetched in the last query, used to avoid duplicates when using tailing query time window
+	order            bool			  //search order - true = ascending (may be reversed in case date-after filtering)
 }
 
+type DisplayedEntry struct {
+	timeStamp string
+	id        string
+}
+
+func (entry *DisplayedEntry) isBefore(timeStamp string) bool {
+	return entry.timeStamp < timeStamp
+}
 
 // Regexp for parsing out format fields
 var formatRegexp = regexp.MustCompile("%[A-Za-z0-9@_.-]+")
 const dateFormatDMY = "2006-01-02"
+const dateFormatFull = "2006-01-02T15:04:05.999Z07:00"
+const tailingTimeWindow = 500
 
 // Create a new Tailer using configuration
 func NewTail(configuration *Configuration) *Tail {
@@ -183,10 +193,11 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 	Trace.Printf("Fetched page of %d results out of %d total.\n", len(searchResult.Hits.Hits), searchResult.Hits.TotalHits)
 	hits := searchResult.Hits.Hits
 
-	// We need to track last N entries that had the timestamp identical to last timestamp. This is done to
-	// avoid loosing entries that have identical timestamp when executing next query. When tailing, we will
+	// We need to track last N entries that had the timestamp newer than cutoff timestamp. This is done to
+	// avoid loosing entries that may have arrived to elasticsearch just as we were executing next query.
+	// When tailing, we will
 	// issue next query which will be filtered so that timestamps are greater or
-	// equal to last timestamp. Since we are tracking IDs of entries with last timestamp form previous query,
+	// equal to last timestamp minus tailing time window. Since we are tracking IDs of entries form previous query,
 	// we can use the IDs to remove the duplicates. https://github.com/knes1/elktail/issues/11
 
 	if t.order {
@@ -196,9 +207,8 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 			timeStamp := entry[t.queryDefinition.TimestampField].(string)
 			if timeStamp != t.lastTimeStamp {
 				t.lastTimeStamp = timeStamp
-				t.lastIDs = nil
 			}
-			t.lastIDs = append(t.lastIDs, hit.Id)
+			t.lastIDs = append(t.lastIDs, DisplayedEntry{ timeStamp: timeStamp, id: hit.Id })
 		}
 
 	} else { //when results are in descending order, we need to process them in reverse
@@ -208,11 +218,34 @@ func (t *Tail) processResults(searchResult *elastic.SearchResult) {
 			timeStamp := entry[t.queryDefinition.TimestampField].(string)
 			if timeStamp != t.lastTimeStamp {
 				t.lastTimeStamp = timeStamp
-				t.lastIDs = nil
 			}
-			t.lastIDs = append(t.lastIDs, hit.Id)
+			t.lastIDs = append(t.lastIDs, DisplayedEntry{ timeStamp: timeStamp, id: hit.Id })
 		}
 	}
+	cutoffTime := formatElasticTimeStamp(parseElasticTimeStamp(t.lastTimeStamp).Add(-tailingTimeWindow * time.Millisecond))
+	drainOldEntries(&t.lastIDs, cutoffTime)
+	//fmt.Print("------------------------------------------------\n")
+	//Debugging IDs
+	//Info.Printf("CutOff time: %s", cutoffTime)
+	//Info.Printf("IDs: %v", t.lastIDs)
+}
+
+func parseElasticTimeStamp(elTimeStamp string) time.Time  {
+	timeStr, _ := time.Parse(dateFormatFull, elTimeStamp)
+	return timeStr
+}
+
+func formatElasticTimeStamp(timeStamp time.Time) string  {
+	return timeStamp.Format(dateFormatFull)
+}
+
+
+
+func drainOldEntries(entries *[]DisplayedEntry, cutOffTimestamp string) {
+	var i int
+	for i = 0; i < len(*entries) - 1 && (*entries)[i].timeStamp < cutOffTimestamp; i++ {
+	}
+	*entries = (*entries)[i:]
 }
 
 func (t *Tail) processHit(hit *elastic.SearchHit) map[string]interface{} {
@@ -276,9 +309,17 @@ func (t *Tail) buildDateTimeRangeFilter() elastic.RangeFilter {
 }
 
 func (t *Tail) buildTimestampFilteredQuery() elastic.Query {
+	timeStamp := formatElasticTimeStamp(parseElasticTimeStamp(t.lastTimeStamp).Add(-tailingTimeWindow * time.Millisecond))
+
 	timeStampFilter := elastic.NewRangeFilter(t.queryDefinition.TimestampField).
-			Gte(t.lastTimeStamp)
-	idFilter := elastic.NewNotFilter(elastic.NewIdsFilter().Ids(t.lastIDs...))
+			Gte(timeStamp)
+
+	idsToFilter := make([]string, len(t.lastIDs))
+	for i := range t.lastIDs {
+		idsToFilter[i] = t.lastIDs[i].id
+	}
+
+	idFilter := elastic.NewNotFilter(elastic.NewIdsFilter().Ids(idsToFilter...))
 	filter := elastic.NewAndFilter(timeStampFilter, idFilter)
 
 	query := elastic.NewFilteredQuery(t.buildSearchQuery()).Filter(filter)

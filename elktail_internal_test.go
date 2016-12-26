@@ -29,3 +29,15 @@ func TestFindIndicesForDateRange(t *testing.T) {
 	tu.AssertEqualsInt(t, 3, len(x))
 
 }
+
+func TestDrainOldEntries(t *testing.T) {
+	arr := []DisplayedEntry{
+		{ timeStamp: "2016-01-01", id: "1"},
+		{ timeStamp: "2016-01-02", id: "2"},
+		{ timeStamp: "2016-01-03", id: "3"},
+	}
+
+	drainOldEntries(&arr, "2016-01-02")
+	tu.AssertEqualsInt(t, 2, len(arr))
+
+}
