@@ -139,6 +139,22 @@ func (tail *Tail) selectIndices(configuration *Configuration) {
 	Info.Printf("Using indices: %s", tail.indices)
 }
 
+// Queries the given range and processes the result.
+func (t *Tail) DateRangeQuery() {
+	scanCursor, scanErr := t.client.Scan().
+		Indices(t.indices...).
+		Sort(t.queryDefinition.TimestampField, false).
+		Size(100).
+		Query(t.buildSearchQuery()).
+		Do()
+
+	if scanErr != nil {
+		Error.Fatalln("Error in executing search query.", scanErr)
+	}
+
+	t.processScanCursor(scanCursor)
+}
+
 // Start the tailer
 func (t *Tail) Start(follow bool, initialEntries int) {
 	result, err := t.initialSearch(initialEntries)
@@ -496,7 +512,12 @@ func main() {
 		//If we don't exit here we can save the defaults
 		configToSave.SaveDefault()
 
-		tail.Start(!config.IsListOnly(), config.InitialEntries)
+		// We only do a single scanning query
+		if tail.queryDefinition.IsDateTimeFiltered() {
+			tail.DateRangeQuery();
+		} else {
+			tail.Start(!config.IsListOnly(), config.InitialEntries)
+		}
 	}
 
 	app.Run(os.Args)

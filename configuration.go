@@ -240,6 +240,10 @@ func (q *QueryDefinition) IsDateTimeFiltered() bool {
 	return q.AfterDateTime != "" || q.BeforeDateTime != ""
 }
 
+func (q *QueryDefinition) IsDateRange() bool {
+	return q.AfterDateTime != "" && q.BeforeDateTime != ""
+}
+
 func IsConfigRelevantFlagSet(c *cli.Context) bool {
 	for _, flag := range configRelevantFlags {
 		if c.IsSet(flag) {
