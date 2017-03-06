@@ -151,21 +151,27 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 		time.Sleep(delay)
 		if t.lastTimeStamp != "" {
 			//we can execute follow up timestamp filtered query only if we fetched at least 1 result in initial query
-			result, err = t.client.Search().
+			scanCursor, scanErr := t.client.Scan().
 				Indices(t.indices...).
 				Sort(t.queryDefinition.TimestampField, false).
-				From(0).
-				Size(9000). //TODO: needs rewrite this using scrolling, as this implementation may loose entries if there's more than 9K entries per sleep period
+				Size(100).
 				Query(t.buildTimestampFilteredQuery()).
 				Do()
+				
+			if scanErr != nil {
+				Error.Fatalln("Error in executing search query.", scanErr)
+			}
+
+			t.processScanCursor(scanCursor)
+
 		} else {
 			//if lastTimeStamp is not defined we have to repeat the initial search until we get at least 1 result
 			result, err = t.initialSearch(initialEntries)
+			if err != nil {
+				Error.Fatalln("Error in executing search query.", err)
+			}
+			t.processResults(result)
 		}
-		if err != nil {
-			Error.Fatalln("Error in executing search query.", err)
-		}
-		t.processResults(result)
 
 		//Dynamic delay calculation for determining delay between search requests
 		if result.TotalHits() > 0 && delay > 500*time.Millisecond {
@@ -173,6 +179,19 @@ func (t *Tail) Start(follow bool, initialEntries int) {
 		} else if delay <= 2000*time.Millisecond {
 			delay = delay + 500*time.Millisecond
 		}
+	}
+}
+
+func (t *Tail) processScanCursor(scanCursor *elastic.ScanCursor) {
+	for {
+		res, err := scanCursor.Next()
+		if err == elastic.EOS {
+			break
+		} else if err != nil {
+			Error.Fatalln("Error in executing cursor query.", err)
+		}
+
+		t.processResults(res);
 	}
 }
 
