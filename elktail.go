@@ -6,6 +6,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"gopkg.in/olivere/elastic.v2"
@@ -17,6 +18,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"github.com/codegangsta/cli"
 	"net/url"
+	"net/http"
 	"errors"
 )
 
@@ -79,6 +81,22 @@ func NewTail(configuration *Configuration) *Tail {
 	if configuration.User != "" {
 		defaultOptions = append(defaultOptions,
 			elastic.SetBasicAuth(configuration.User, configuration.Password))
+	}
+
+	var cert = configuration.SearchTarget.Cert
+	var key = configuration.SearchTarget.Key
+	if cert != "" && key != "" {
+		cert, err := tls.LoadX509KeyPair(cert, key)
+		if err != nil {
+		    Error.Fatalf("Bad certificate and/or key: %s", err)
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+		tlsConfig.BuildNameToCertificate()
+		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		client := &http.Client{Transport: transport}
+		defaultOptions = append(defaultOptions, elastic.SetHttpClient(client))
 	}
 
 	if configuration.TraceRequests {
