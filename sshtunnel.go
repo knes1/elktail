@@ -124,15 +124,16 @@ func GetUser() (string, error) {
 // tunnelDef  local_port:remote_host:remote_port
 //
 func NewSSHTunnelFromHostStrings(sshHostDef string, tunnelDef string) *SSHTunnel {
-	sshHostRegexp := regexp.MustCompile(`((\w*)@)?([^:@]+)(:(\d{2,5}))?`)
+	sshHostRegexp := regexp.MustCompile(`((\d+):)?(([\w]+)@)?([\w\.\-]+)(:(\d{2,5}))?`)
 	match := sshHostRegexp.FindAllStringSubmatch(sshHostDef, -1)
 	if len(match) == 0 {
 		Error.Fatalf("SSH Tunnel: Failed to parse ssh host %s\n", sshHostDef)
 	}
 	result := match[0]
-	sshUser := result[2]
-	sshHost := result[3]
-	sshPort := parsePort(result[5], 22)
+	sshUser := result[4]
+	sshHost := result[5]
+	sshPort := parsePort(result[7], 22)
+	Trace.Printf("sshUser:[%s], sshHost:[%s], sshPort:[%d]", sshUser, sshHost, sshPort)
 	if sshUser == "" {
 		osUser, err := GetUser()
 		if err != nil {
