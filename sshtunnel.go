@@ -185,7 +185,7 @@ func passwordCallback() (string, error) {
 }
 
 func hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
-	fmt.Printf("host: %s", hostname)
+	Trace.Printf("host: %s", hostname)
 	return nil
 }
 
