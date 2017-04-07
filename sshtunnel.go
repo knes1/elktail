@@ -7,19 +7,21 @@
  */
 package main
 
+// "crypto/rsa"
+
 import (
-	"os"
+	"errors"
 	"fmt"
-	"io"
-	"net"
-	"os/user"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"io"
+	"net"
+	"os"
+	"os/exec"
+	"os/user"
 	"regexp"
 	"strconv"
-	"os/exec"
 	"strings"
-	"errors"
 )
 
 type Endpoint struct {
@@ -65,11 +67,11 @@ func (tunnel *SSHTunnel) Start() error {
 
 func (tunnel *SSHTunnel) forward(localConn net.Conn, sshServerConn *ssh.Client) {
 	/*
-	serverConn, err := ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
-	if err != nil {
-		Error.Fatalf("SSH Tunnel: Server dial error: %s\n", err)
-		return
-	}*/
+		serverConn, err := ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
+		if err != nil {
+			Error.Fatalf("SSH Tunnel: Server dial error: %s\n", err)
+			return
+		}*/
 
 	remoteConn, err := sshServerConn.Dial("tcp", tunnel.Remote.String())
 	if err != nil {
@@ -78,7 +80,7 @@ func (tunnel *SSHTunnel) forward(localConn net.Conn, sshServerConn *ssh.Client) 
 	}
 
 	copyConn := func(writer, reader net.Conn) {
-		_, err:= io.Copy(writer, reader)
+		_, err := io.Copy(writer, reader)
 		if err != nil {
 			Error.Fatalf("SSH Tunnel: Could not forward conenction: %s\n", err)
 		}
@@ -134,8 +136,8 @@ func NewSSHTunnelFromHostStrings(sshHostDef string, tunnelDef string) *SSHTunnel
 	if sshUser == "" {
 		osUser, err := GetUser()
 		if err != nil {
-			Error.Printf("Could not detect current username to use when connecting via SSH. Please specify a username " +
-					"when specifying SSH host (e.g. your_username@%s)\n", sshHost)
+			Error.Printf("Could not detect current username to use when connecting via SSH. Please specify a username "+
+				"when specifying SSH host (e.g. your_username@%s)\n", sshHost)
 			os.Exit(1)
 		}
 		sshUser = osUser
@@ -164,11 +166,10 @@ func NewSSHTunnelFromHostStrings(sshHostDef string, tunnelDef string) *SSHTunnel
 	return NewSSHTunnel(sshUser, sshHost, sshPort, localPort, remoteHost, remotePort)
 }
 
-
 func parsePort(portStr string, defaultPort int) int {
 	if portStr != "" {
 		port, err := strconv.Atoi(portStr)
-		if (err != nil) {
+		if err != nil {
 			Error.Printf("SSH Tunnel: Reverting to port %d because given port was not numeric: %s\n", defaultPort, err)
 			port = defaultPort
 		}
@@ -179,12 +180,17 @@ func parsePort(portStr string, defaultPort int) int {
 
 func passwordCallback() (string, error) {
 	fmt.Println("Enter ssh password:")
-	pwd := readPasswd();
-	return pwd, nil;
+	pwd := readPasswd()
+	return pwd, nil
+}
+
+func hostKeyCallback(hostname string, remote net.Addr, key ssh.PublicKey) error {
+	fmt.Printf("host: %s", hostname)
+	return nil
 }
 
 func NewSSHTunnel(sshUser string, sshHost string, sshPort int, localPort int,
-						remoteHost string, remotePort int) *SSHTunnel {
+	remoteHost string, remotePort int) *SSHTunnel {
 	localEndpoint := &Endpoint{
 		Host: "localhost",
 		Port: localPort,
@@ -206,6 +212,7 @@ func NewSSHTunnel(sshUser string, sshHost string, sshPort int, localPort int,
 			SSHAgent(),
 			ssh.PasswordCallback(passwordCallback),
 		},
+		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
 	}
 
 	return &SSHTunnel{
@@ -215,4 +222,3 @@ func NewSSHTunnel(sshUser string, sshHost string, sshPort int, localPort int,
 		Remote: remoteEndpoint,
 	}
 }
-
