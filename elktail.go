@@ -267,7 +267,9 @@ func (tail *Tail) printResult(entry map[string]interface{}) {
 		value, _ := EvaluateExpression(entry, f[1:])
 		result = strings.Replace(result, f, value, -1)
 	}
-	fmt.Println(result)
+	if len(result) > 0 {
+		fmt.Println(result)
+	}
 }
 
 func (tail *Tail) buildSearchQuery() elastic.Query {
