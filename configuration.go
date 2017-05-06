@@ -156,7 +156,7 @@ func (config *Configuration) Flags() []cli.Flag {
 		cli.StringFlag{
 			Name:        "f,format",
 			Value:       "%message",
-			Usage:       "(*) Message format for the entries - field names are referenced using % sign, for example '%@timestamp %message'",
+			Usage:       "(*) Message format for the entries - field names are referenced using % sign, length with [n], for example '%@timestamp %message[55]'",
 			Destination: &config.QueryDefinition.Format,
 		},
 		cli.StringFlag{

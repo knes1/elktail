@@ -12,9 +12,13 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"golang.org/x/crypto/ssh/terminal"
+
+	"unicode/utf8"
+
 	"github.com/codegangsta/cli"
 	"net/url"
 	"errors"
@@ -41,8 +45,11 @@ func (entry *DisplayedEntry) isBefore(timeStamp string) bool {
 	return entry.timeStamp < timeStamp
 }
 
-// Regexp for parsing out format fields
-var formatRegexp = regexp.MustCompile("%[A-Za-z0-9@_.-]+")
+// FormatRegexp is used to parse out format fields from a user-supplied format string.
+// Fields are prefaced with a '%' sign, and can be optionally suffixed with padding size
+// in rune length (e.g. "%@timestamp %message[65]")
+var FormatRegexp = regexp.MustCompile(`(%[A-Za-z0-9@_.-]+)(?:\[([1-9][0-9]*)\])?`)
+
 const dateFormatDMY = "2006-01-02"
 const dateFormatFull = "2006-01-02T15:04:05.999Z07:00"
 const tailingTimeWindow = 500
@@ -255,21 +262,58 @@ func (t *Tail) processHit(hit *elastic.SearchHit) map[string]interface{} {
 		Error.Fatalln("Failed parsing ElasticSearch response.", err)
 	}
 	t.printResult(entry)
-	return entry;
+	return entry
 }
-
 
 // Print result according to format
 func (t *Tail) printResult(entry map[string]interface{}) {
 	Trace.Println("Result: ", entry)
-	fields := formatRegexp.FindAllString(t.queryDefinition.Format, -1)
+
+	fields := FormatRegexp.FindAllStringSubmatch(t.queryDefinition.Format, -1)
+	// e.g. #=> [["%message[24]", "%message", "24"]...]
 	Trace.Println("Fields: ", fields)
+
 	result := t.queryDefinition.Format
+
 	for _, f := range fields {
-		value, _ := EvaluateExpression(entry, f[1:])
-		result = strings.Replace(result, f, value, -1)
+		value, _ := EvaluateExpression(entry, f[1][1:])
+
+		if s := f[2]; s != "" {
+			colSize, _ := strconv.Atoi(f[2]) // regexp ensures parse-able
+			value = fitString(value, colSize)
+		}
+		result = strings.Replace(result, f[0], value, -1)
 	}
 	fmt.Println(result)
+}
+
+// fitString strips runes from `s` (or pads with ' ') to
+// create a string of length `n`
+func fitString(s string, n int) string {
+	l := utf8.RuneCountInString(s)
+
+	if l < n {
+		for p := 0; p < n-l; p++ {
+			s += " "
+		}
+	} else if l > n {
+		s = s[0:runeLengthToByteLength(s, n)]
+	}
+
+	return s
+}
+
+// runeLengthToByteLength returns the number of bytes in the first n
+// runes of the string s
+func runeLengthToByteLength(s string, n int) int {
+    b := 0
+    for i := range s {
+        if i > n {
+            break
+        }
+        b = i
+    }
+    return b
 }
 
 func (t *Tail) buildSearchQuery() elastic.Query {
