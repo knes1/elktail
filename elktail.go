@@ -254,8 +254,14 @@ func (t *Tail) processHit(hit *elastic.SearchHit) map[string]interface{} {
 	if err != nil {
 		Error.Fatalln("Failed parsing ElasticSearch response.", err)
 	}
-	t.printResult(entry)
-	return entry;
+
+	if t.queryDefinition.Raw {
+		fmt.Println(string(*hit.Source))
+	} else {
+		t.printResult(entry)
+	}
+
+	return entry
 }
 
 
