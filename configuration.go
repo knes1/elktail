@@ -22,6 +22,7 @@ type SearchTarget struct {
 type QueryDefinition struct {
 	Terms          []string
 	Format         string
+        Raw            bool
 	TimestampField string
 	AfterDateTime  string  `json:"-"`
 	BeforeDateTime string  `json:"-"`
@@ -158,6 +159,11 @@ func (config *Configuration) Flags() []cli.Flag {
 			Value:       "%message",
 			Usage:       "(*) Message format for the entries - field names are referenced using % sign, for example '%@timestamp %message'",
 			Destination: &config.QueryDefinition.Format,
+		},
+		cli.BoolFlag{
+			Name:        "raw",
+			Usage:       "Just print raw JSON lines",
+			Destination: &config.QueryDefinition.Raw,
 		},
 		cli.StringFlag{
 			Name:        "i,index-pattern",
