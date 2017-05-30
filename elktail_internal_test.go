@@ -6,8 +6,8 @@
 package main
 
 import (
+	tu "github.com/knes1/elktail/testutils"
 	"testing"
-	tu "github.io/knes1/elktail/testutils"
 )
 
 func TestExtractDate(t *testing.T) {
@@ -16,7 +16,7 @@ func TestExtractDate(t *testing.T) {
 }
 
 func TestFindIndicesForDateRange(t *testing.T) {
-	indices := [...]string {
+	indices := [...]string{
 		"logstash-2016.06.15",
 		"logstash-2016.06.16",
 		"logstash-2016.06.17",
@@ -31,10 +31,10 @@ func TestFindIndicesForDateRange(t *testing.T) {
 }
 
 func TestDrainOldEntries(t *testing.T) {
-	arr := []DisplayedEntry{
-		{ timeStamp: "2016-01-01", id: "1"},
-		{ timeStamp: "2016-01-02", id: "2"},
-		{ timeStamp: "2016-01-03", id: "3"},
+	arr := []displayedEntry{
+		{timeStamp: "2016-01-01", id: "1"},
+		{timeStamp: "2016-01-02", id: "2"},
+		{timeStamp: "2016-01-03", id: "3"},
 	}
 
 	drainOldEntries(&arr, "2016-01-02")

@@ -4,16 +4,16 @@
  * of the MIT license. See the LICENSE file for details.
  */
 package main
-import (
-	"testing"
-	"github.io/knes1/elktail/testutils"
-)
 
+import (
+	"github.com/knes1/elktail/testutils"
+	"testing"
+)
 
 func TestResolveField(t *testing.T) {
 	model1 := map[string]interface{}{
 		"@timestamp": 3711,
-		"message":   2138,
+		"message":    2138,
 		"map": map[string]interface{}{
 			"test": "test",
 		},
@@ -23,8 +23,6 @@ func TestResolveField(t *testing.T) {
 	testutils.AssertEqualsString(t, "", eval(model1, "map.foo"))
 	testutils.AssertEqualsString(t, "", eval(model1, "bar"))
 }
-
-
 
 func eval(model interface{}, expr string) string {
 	result, _ := EvaluateExpression(model, expr)

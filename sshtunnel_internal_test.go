@@ -4,10 +4,11 @@
  * of the MIT license. See the LICENSE file for details.
  */
 package main
+
 import (
-	"testing"
+	"github.com/knes1/elktail/testutils"
 	"os"
-	"github.io/knes1/elktail/testutils"
+	"testing"
 )
 
 func TestNewSSHTunnelFromHostStrings(t *testing.T) {
@@ -32,4 +33,3 @@ func TestNewSSHTunnelFromHostStrings(t *testing.T) {
 	testutils.AssertEqualsInt(t, tunnel.Server.Port, 22)
 
 }
-
