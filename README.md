@@ -1,12 +1,19 @@
 # Elktail
 
+THIS IS A FORK OF:
+
+- https://github.com/rvanider/elktail
+- https://github.com/mnbbrown/elktail
+- https://github.com/knes1/elktail
+
+
 Elktail is a command line utility to query and tail ELK (elasticsearch, logstash, kibana) logs. Even though it's powerful, using Kibana's web interface to search and analyse the logs is not always practical. Sometimes you just wish to `tail -f` the logs that you normally view in kibana to see what's happening right now. Elktail allows you to do just that, and more. Tail the logs. Search for errors and specific events on commandline. Pipe the search results to any of the standard unix tools.  Use it in scripts. Redirect the output to a file to effectively download a log from es / kibana etc...
 
 For additional information and usage examples take a look at this post: [Elktail - Command Line Tool for Tailing and Querying ELK Logs](http://knes1.github.io/blog/2016/2016-03-06-elktail-command-line-tool-for-tailing-and-querying-ELK-logs.html)
 
 ## Feature Requests
 
-Please feel free to use the [Issue Tracker](https://github.com/knes1/elktail/issues) if you have any feature ideas or requests (and, of course, to report bugs).
+Please feel free to use the [Issue Tracker](https://github.com/bonovoxly/elktail/issues) if you have any feature ideas or requests (and, of course, to report bugs).
 
 ## Picking The Right Version
 
@@ -23,7 +30,7 @@ Elktail major versions follow ElasticSearch versions. Here's the table indicatin
 
 Elktail is written in Go language, and if you have [Go installed](https://golang.org/doc/install#install), you can just type in:
 
-`go get github.com/knes1/elktail`
+`go get github.com/bonovoxly/elktail`
 
 This will automatically download, compile and install the latest version of the app.
 After that you should have `elktail` executable in your `$GOPATH/bin`.
@@ -38,7 +45,7 @@ To install `elktail` using homebrew packet manager type in the following in the 
 
 #### Download Binary
 
-You can also download the executable binary from the [releases page](https://github.com/knes1/elktail/releases).
+You can also download the executable binary from the [releases page](https://github.com/bonovoxly/elktail/releases).
 
 # Basic Usage
 

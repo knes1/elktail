@@ -199,7 +199,7 @@ func (tail *Tail) processResults(searchResult *elastic.SearchResult) {
 	// When tailing, we will
 	// issue next query which will be filtered so that timestamps are greater or
 	// equal to last timestamp minus tailing time window. Since we are tracking IDs of entries form previous query,
-	// we can use the IDs to remove the duplicates. https://github.com/knes1/elktail/issues/11
+	// we can use the IDs to remove the duplicates. https://github.com/bonovoxly/elktail/issues/11
 
 	if tail.order {
 		for i := 0; i < len(hits); i++ {
