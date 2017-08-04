@@ -10,7 +10,7 @@ import (
 	"os"
 	"encoding/json"
 	"io/ioutil"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 type SearchTarget struct {
@@ -144,8 +144,11 @@ func LoadDefault() (conf *Configuration, err error)  {
 
 
 func (config *Configuration) Flags() []cli.Flag {
-	cli.VersionFlag.Usage = "Print the version"
-	cli.HelpFlag.Usage = "Show help"
+	cli.VersionFlag = cli.BoolFlag{
+	  Name: "print-version, V",
+	  Usage: "print only the version",
+	}
+	cli.HelpFlag = cli.BoolFlag{Name: "halp"}
 	return []cli.Flag {
 		cli.StringFlag{
 			Name:        "url",
