@@ -8,6 +8,15 @@ For additional information and usage examples take a look at this post: [Elktail
 
 Please feel free to use the [Issue Tracker](https://github.com/knes1/elktail/issues) if you have any feature ideas or requests (and, of course, to report bugs).
 
+## Picking The Right Version
+
+Elktail major versions follow ElasticSearch versions. Here's the table indicating which version Elktail you should for your  ElasticSearch install:
+
+| Elktail       | ElasticSearch |
+| ------------- | ------------- |
+| v5.x.x        | >= 5.x.x      |
+| v1.x.x        | 1.x.x, 2.x.x  |
+
 # Installation
 
 #### Install Using Go
@@ -16,7 +25,7 @@ Elktail is written in Go language, and if you have [Go installed](https://golang
 
 `go get github.com/knes1/elktail`
 
-This will automatically download, compile and install the app.
+This will automatically download, compile and install the latest version of the app.
 After that you should have `elktail` executable in your `$GOPATH/bin`.
 
 #### Install Using Hombrew (OS/X)
