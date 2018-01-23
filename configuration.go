@@ -148,7 +148,7 @@ func (config *Configuration) Flags() []cli.Flag {
 	  Name: "print-version, V",
 	  Usage: "print only the version",
 	}
-	cli.HelpFlag = cli.BoolFlag{Name: "halp"}
+	cli.HelpFlag = cli.BoolFlag{Name: "help"}
 	return []cli.Flag {
 		cli.StringFlag{
 			Name:        "url",
@@ -251,4 +251,3 @@ func IsConfigRelevantFlagSet(c *cli.Context) bool {
 	}
 	return false
 }
-
