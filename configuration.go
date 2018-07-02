@@ -17,6 +17,8 @@ type SearchTarget struct {
 	Url          string
 	TunnelUrl	 string	`json:"-"`
 	IndexPattern string
+	Cert         string
+	Key          string
 }
 
 type QueryDefinition struct {
@@ -75,6 +77,8 @@ func (c *Configuration) CopyConfigRelevantSettingsTo(dest *Configuration) {
 	//copy config relevant configuration settings
 	dest.SearchTarget.TunnelUrl = c.SearchTarget.TunnelUrl
 	dest.SearchTarget.Url = c.SearchTarget.Url
+	dest.SearchTarget.Cert = c.SearchTarget.Cert
+	dest.SearchTarget.Key = c.SearchTarget.Key
 	dest.SearchTarget.IndexPattern = c.SearchTarget.IndexPattern
 	dest.QueryDefinition.Format = c.QueryDefinition.Format
 	dest.QueryDefinition.Terms = make([]string, len(c.QueryDefinition.Terms))
@@ -156,6 +160,18 @@ func (config *Configuration) Flags() []cli.Flag {
 			Value:       "http://127.0.0.1:9200",
 			Usage:       "(*) ElasticSearch URL",
 			Destination: &config.SearchTarget.Url,
+		},
+		cli.StringFlag{
+			Name:        "cert",
+			Value:       "",
+			Usage:       "(*) certificate to use when accessing via TLS",
+			Destination: &config.SearchTarget.Cert,
+		},
+		cli.StringFlag{
+			Name:        "key",
+			Value:       "",
+			Usage:       "(*) key to use when accessing via TLS",
+			Destination: &config.SearchTarget.Key,
 		},
 		cli.StringFlag{
 			Name:        "f,format",

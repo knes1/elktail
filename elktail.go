@@ -7,6 +7,7 @@ of the MIT license. See the LICENSE file for details.
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"github.com/urfave/cli"
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/net/context"
 	"gopkg.in/olivere/elastic.v5"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -81,6 +83,22 @@ func NewTail(configuration *Configuration) *Tail {
 	if configuration.User != "" {
 		defaultOptions = append(defaultOptions,
 			elastic.SetBasicAuth(configuration.User, configuration.Password))
+	}
+
+	var cert = configuration.SearchTarget.Cert
+	var key = configuration.SearchTarget.Key
+	if cert != "" && key != "" {
+		cert, err := tls.LoadX509KeyPair(cert, key)
+		if err != nil {
+		    Error.Fatalf("Bad certificate and/or key: %s", err)
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+		tlsConfig.BuildNameToCertificate()
+		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		client := &http.Client{Transport: transport}
+		defaultOptions = append(defaultOptions, elastic.SetHttpClient(client))
 	}
 
 	if configuration.TraceRequests {
