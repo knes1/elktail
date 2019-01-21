@@ -12,7 +12,7 @@ import (
 	"github.com/codegangsta/cli"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/context"
-	"gopkg.in/olivere/elastic.v5"
+	"gopkg.in/olivere/elastic.v6"
 	"io/ioutil"
 	"net/url"
 	"os"
