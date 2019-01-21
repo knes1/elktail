@@ -9,10 +9,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/net/context"
-	"gopkg.in/olivere/elastic.v5"
+	"gopkg.in/olivere/elastic.v6"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -111,9 +111,13 @@ func NewTail(configuration *Configuration) *Tail {
 // Selects appropriate indices in EL based on configuration. This basically means that if query is date filtered,
 // then it attempts to select indices in the filtered date range, otherwise it selects the last index.
 func (tail *Tail) selectIndices(configuration *Configuration) {
-	indices, err := tail.client.IndexNames()
+	result, err := tail.client.CatIndices().Do(context.TODO())
 	if err != nil {
 		Error.Fatalln("Could not fetch available indices.", err)
+	}
+	indices := make([]string, len(result))
+	for i, response := range result {
+		indices[i] = response.Index
 	}
 
 	if configuration.QueryDefinition.IsDateTimeFiltered() {
@@ -267,7 +271,6 @@ func (tail *Tail) printResult(entry map[string]interface{}) {
 		value, _ := EvaluateExpression(entry, f[1:])
 		result = strings.Replace(result, f, value, -1)
 	}
-	fmt.Println(result)
 }
 
 func (tail *Tail) buildSearchQuery() elastic.Query {
@@ -469,7 +472,6 @@ func main() {
 		tail := NewTail(config)
 		//If we don't exit here we can save the defaults
 		configToSave.SaveDefault()
-
 		tail.Start(!config.IsListOnly(), config.InitialEntries)
 	}
 

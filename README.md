@@ -14,6 +14,7 @@ Elktail major versions follow ElasticSearch versions. Here's the table indicatin
 
 | Elktail       | ElasticSearch |
 | ------------- | ------------- |
+| v6.x.x        | >= 6.x.x      |
 | v5.x.x        | >= 5.x.x      |
 | v1.x.x        | 1.x.x, 2.x.x  |
 
