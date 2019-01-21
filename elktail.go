@@ -111,9 +111,13 @@ func NewTail(configuration *Configuration) *Tail {
 // Selects appropriate indices in EL based on configuration. This basically means that if query is date filtered,
 // then it attempts to select indices in the filtered date range, otherwise it selects the last index.
 func (tail *Tail) selectIndices(configuration *Configuration) {
-	indices, err := tail.client.IndexNames()
+	result, err := tail.client.CatIndices().Do(context.TODO())
 	if err != nil {
 		Error.Fatalln("Could not fetch available indices.", err)
+	}
+	indices := make([]string, len(result))
+	for i, response := range result {
+		indices[i] = response.Index
 	}
 
 	if configuration.QueryDefinition.IsDateTimeFiltered() {
