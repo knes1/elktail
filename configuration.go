@@ -8,7 +8,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"io/ioutil"
 	"os"
 	"runtime"
