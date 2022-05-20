@@ -9,16 +9,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/cli"
-	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/net/context"
-	"gopkg.in/olivere/elastic.v5"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/olivere/elastic/v7"
+	"github.com/urfave/cli"
+	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/net/context"
 )
 
 //
@@ -249,7 +250,7 @@ func drainOldEntries(entries *[]displayedEntry, cutOffTimestamp string) {
 
 func (tail *Tail) processHit(hit *elastic.SearchHit) map[string]interface{} {
 	var entry map[string]interface{}
-	err := json.Unmarshal(*hit.Source, &entry)
+	err := json.Unmarshal(*&hit.Source, &entry)
 	if err != nil {
 		Error.Fatalln("Failed parsing ElasticSearch response.", err)
 	}
