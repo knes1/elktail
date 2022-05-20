@@ -1,8 +1,6 @@
-module github.com/MrPnut/elktail
+module github.com/mrpnut/elktail
 
 go 1.18
-
-//replace github.com/knes1/elktail => ./
 
 require (
 	github.com/knes1/elktail v0.0.0-00010101000000-000000000000
